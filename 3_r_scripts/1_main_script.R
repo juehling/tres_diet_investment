@@ -1,92 +1,376 @@
 ###
-# I always start my scripts with a header giving a brief description of the purpose of the script.
-# In this case, the goal is to make a template for new analyses in the lab and to describe why
-# parts of the project folder are organized the way they are.
-#
-# Written by: Sabrina McNew & Conor Taff
-# Last updated: 10/13/2020
-# Run under R Studio 1.1.463 on Mac OSX 10.11.6
-# See markdown file for saving session info. If you aren't working in markdown it is also 
-# good practice to record package versions here.
+# Written by: Conor Taff, Jenny Uehling, and Paige Becker
+# Last updated: 2/22/2021
+# Run under R Studio XX on XX
 
-# Load packages ----
-  # Ending the line above with four dashes or four hashtags puts the chunk into your outline below. 
-  # This makes it a lot easier to find things later in a long script. Another way to create sections 
-  # is with "command + shift + R" in Rstudio. 
+# This is the main analysis script for processing the COI data after running through
+# AMPtk. Just a few files are saved from AMPtk to use here.
 
-  # I like to load all packages up front using 'pacman'. This way you can see right at the beginning
-  # what is required and you are less likely to break your code when modifying it by moving a line
-  # up to before the required package was loaded. I have a few packages I almost always load, but most
-  # of these would change each time depending on the project. Just remember to add packages to the list
-  # up here when you want to use them. You'll get an error if these packages aren't installed on your local
-  # machine yet and will need to run install.packages(xxx)
-    pacman::p_load(tidyverse, here, plyr, sjPlot)
-      # 'here' is useful for referring to relative path names in your project directory.
+# The files are then used for analyses related to Paige Becker's honors thesis
+# on tree swallow parental investment and diet quality.
 
-# Load data ----
-  # here is where I would load any raw data that you have added to the project
-  # I'm reading in two files from
-    #https://knowledge.domo.com/Training/Self-Service_Training/Onboarding_Resources/Fun_Sample_Datasets
-    d_hero <- read.delim(here::here("1_raw_data/raw_hero_data.txt"))      #super hero attributes
-    d_power <- read.delim(here::here("1_raw_data/raw_hero_power.txt"))    #super hero powers
+################################################################################
+# Load libraries ----
 
-# Clean up data
-    # Make any kind of exclusions you want here and document them well. Apply transformations to columns or 
-    # standardize them in some way.
-    # You might change column names here too (though maybe that should be done when you make the files). 
-      colnames(d_power)[1] <- "name"    #I changed this to match the other data file.
-        
-# Set values ----
-    
-    # Any values that you are setting that will be used through the script should go here. For example
-    # if you have a control and treatment group, you can set plotting colors for them here. Then everywhere
-    # you plot below you can refer to these objects. That way changing the color for all treatment plots can
-    # be done by changing one line of code here. The same logic applies to any values that you might want to change
-    # later on. This is a LOT easier than finding every place in the code where you might want to change things later.
-    
-        control_color <- "slateblue"
-        treatment_color <- "orange"
-        
-# Make some new data ----
-        
-  # If you'll need to join or modify data that will be used throughout, it's good to do that at the beginning here.
-        full_hero_data <- join(d_hero, d_power, "name", "left", "first")
-        
-    
-  # In this case the object made is small and fast, but if you made something that took a lot of computation time you
-        # can save here here by writing it to your folders
-          write.table(full_hero_data, here::here("2_modified_data/full_hero_data.txt"), sep = "\t")
-        
-        # You could also save the thing you made as an r object instead that you can load again later. This is 
-          # especially useful for things like large models etc that can't be written to a plain column. For microbiome
-          # or diet analyses, after running the full pipeline you can save the final objects and then just reload
-          # them to pickup where you left off rather than having to run the full pipeline again.
-          saveRDS(full_hero_data, here::here("5_other_outputs/full_hero_data.rds"))
-          full_hero_data <- readRDS(here::here("5_other_outputs/full_hero_data.rds"))
-    
-# Analysis and figures ----
-    # Carry on with sections for all your different analyses and figures. If you have a lot of separate sections,
-        # you can split them into separate scripts.
-          hero_fig <- full_hero_data %>%
-            filter(Height > 1, Weight > 1, Alignment != "-", Gender != "-") %>%
-            ggplot(aes(x = Height, y = Weight, color = Alignment)) +
-            geom_point() + facet_wrap(~ Gender)
-          
-        # save here if you want to include in your markdown summary  
-          # note that if your markdown output is html, saving as a pdf doesn't work well
-          ggsave(here::here("3_r_scripts/hero_figure.png"), device = "png", width = 8, height = 4.5, units = "in")
-        # save here if you want to just keep the figure to add into a manuscript, etc, later
-          ggsave(here::here("4_output_figures/hero_figure.pdf"), device = "pdf") 
-          
-          
-    # Fit a simple model and save the table
-          fhd2 <- subset(full_hero_data, full_hero_data$Alignment == "good" |
-                           full_hero_data$Alignment == "bad" |
-                           full_hero_data$Alignment == "neutral")
-          fhd2 <- subset(fhd2, fhd2$Gender == "Female" | fhd2$Gender == "Male")
-          m <- glm(Height ~ Alignment + Gender, data = fhd2, na.action = na.exclude)
-          m2 <- glm(Weight ~ Alignment + Gender, data = fhd2, na.action = na.exclude)
-          save_table <- tab_model(m, m2, 
-                    pred.labels = c("Intercept (align evil; female)", "Alignment Good", "Alignment Neutral", "Gender (male)"))
-          saveRDS(save_table, here::here("5_other_outputs/hero_table.rds"))
-    
+pacman::p_load("tidyverse", "phyloseq", "plyr", "vegan", "here", "ggpubr", "igraph", "data.table", "dplyr")
+# tidyverse & plyr for data wrangling
+# phyloseq & vegan for community analyses and plotting
+# here for file reference by relative paths
+# ggpubr for plotting
+# igraph for network plots
+
+# Will need to install these libraries first if not yet installed
+# To install phyloseq, must install BiocManager and then use the following command: BiocManager::install(c("phyloseq"))
+
+################################################################################
+# Load and wrangle data ----
+
+# the prefix used for AMPtk processing
+# this is set in amptk and all files produced there have this prefix
+# when adapting this to a different set of data, change prefix
+amptk_prefix <- "trescoi"   
+
+# Load the number of reads by taxa per sample table. Format for phyloseq.
+otu_ab <- read.delim(here("1_raw_data", paste0(amptk_prefix, ".cluster.otu_table.txt")))
+rownames(otu_ab) <- otu_ab$X.OTU.ID   # give rownames from sample names
+otu_ab <- otu_ab[, 2:ncol(otu_ab)]    # remove the column of sample names
+
+# Read the mapping table
+# this 'mapping' table from AMPtk is mostly blank but has all the sample
+# names so it can be joined to actual sample metadata. It's also possible
+# to merge in the sample metadata within the AMPtk pipeline.
+map <- read.delim(here("1_raw_data", paste0(amptk_prefix, ".mapping_file.txt")))
+
+for(i in 1:nrow(map)){
+  map$sampleID[i] <- strsplit(map$X.SampleID[i], "x")[[1]][2]
+}
+
+# write.table(map, "map.txt", sep = "\t") # if you want to save a copy of the mapping file
+
+# Read the otu taxonomy table
+otu_tax <- read.delim(here("1_raw_data", paste0(amptk_prefix, ".cluster.taxonomy.txt")))
+rownames(otu_tax) <- otu_tax$X.OTUID
+
+# The taxonomy result from AMPtk is in one long string of text. This is splitting up the string
+# and filling in a bunch of different columns. 
+for(i in 1:nrow(otu_tax)){
+  temp <- otu_tax$taxonomy[i]
+  temp2 <- strsplit(temp, "\\|")[[1]][3]
+  temp3 <- strsplit(temp2, ":")[[1]][2]
+  otu_tax$search_hit[i] <- strsplit(temp, "\\|")[[1]][1]
+  otu_tax$hit_score[i] <- strsplit(temp, "\\|")[[1]][2]
+  otu_tax$database[i] <- strsplit(temp2, ":")[[1]][1]
+  otu_tax$accession[i] <- strsplit(temp3, ";")[[1]][1]
+  otu_tax$kingdom[i] <- strsplit(strsplit(temp2, "k:")[[1]][2], ",")[[1]][1]
+  otu_tax$phylum[i] <- strsplit(strsplit(temp2, "p:")[[1]][2], ",")[[1]][1]
+  otu_tax$class[i] <- strsplit(strsplit(temp2, "c:")[[1]][2], ",")[[1]][1]
+  otu_tax$order[i] <- strsplit(strsplit(temp2, "o:")[[1]][2], ",")[[1]][1]
+  otu_tax$family[i] <- strsplit(strsplit(temp2, "f:")[[1]][2], ",")[[1]][1]
+  otu_tax$genus[i] <- strsplit(strsplit(temp2, "g:")[[1]][2], ",")[[1]][1]
+  otu_tax$species[i] <- strsplit(strsplit(temp2, "s:")[[1]][2], ",")[[1]][1]		
+}
+
+# Replace database mismatches caused by matches that aren't from BOLD records
+otu_tax$database <- gsub("None;k", "None", otu_tax$database)
+otu_tax$accession <- gsub("Animalia,p", "None", otu_tax$accession)
+
+# For phyloseq this has to be added as a matrix rather than data frame    
+otu_tax <- as.matrix(otu_tax)
+# This is saving just the taxonomic ranks rather than the database info.
+otu_tax2 <- otu_tax[, 10:16]
+
+# Add in the sample information to each sample
+s_info <- read.delim(here("1_raw_data", "tres_sample_info.txt"))    # prepared outside of AMPtk
+map2 <- join(map, s_info, "sampleID", "left", "first")
+rownames(map2) <- map2$X.SampleID
+
+# Print out some summary information about this dataset
+summary_table <- map2 %>% dplyr::count(site, age.1, cap_num)
+
+# This will identify how many samples there are in each category of site,
+# age, and capture number.
+
+# This will also identify samples that don't match the metadata file and write them as a separate output
+# missing <- subset(map2, is.na(map2$band) == TRUE)
+# write.table(missing, "missing_info.txt", sep = "\t")      
+
+################################################################################
+# Build initial phyloseq object ----
+
+OTU = otu_table(otu_ab, taxa_are_rows = TRUE)
+TAX = tax_table(otu_tax2)
+SAM = sample_data(map2)
+
+coi_ps <- phyloseq(OTU, TAX, SAM)
+
+# Check sample effort ----
+
+# Subset just to arthropods
+coi_ps2 <- subset_taxa(coi_ps, phylum == "Arthropoda")
+
+# Histogram of sample reads. This is counting a sum of arthropod reads for each sample.
+depth <- data.frame(as(sample_data(coi_ps2), "data.frame"),
+                    TotalReads = sample_sums(coi_ps2), keep.rownames = TRUE)
+p <- ggplot(depth, aes(log(TotalReads))) + geom_histogram(fill = "slateblue") + 
+  ylab("Count of Samples") + xlab("log(Reads)") +
+  theme_classic() + geom_vline(xintercept = log(150), linetype = "dashed", col = "coral3", size = 1) + 
+  geom_text(x = log(150) - 0.2, y = 40, label = "150 Reads", angle = 90)
+p2 <- p + facet_grid(~ age)     # same but splitting out adult/nestling/negative_control
+
+# Save the histograms to file to be added to the markdown
+ggsave(here("3_r_scripts/total_reads.png"), plot = p, width = 8, height = 4.5, device = "png")
+ggsave(here("3_r_scripts/total_reads_split.png"), plot = p2, width = 8.2, height = 4, device = "png")
+
+# Extract the unique arthropod families found in the dataset
+unique_families <- get_taxa_unique(coi_ps2, taxonomic.rank = "family")
+# Save file with list of unique families to use to research aquatic vs.
+# terrestrial families.
+write.csv(unique_families, here("5_other_outputs/unique_families.csv"))
+# This file was then taken out of R to research aquatic vs. terrestrial
+# families, and will be re-imported later.
+
+# Rarefy to even depth of 150
+# running this would rarefy to an even depth moving forward
+# coi_ps2 <- rarefy_even_depth(coi_ps2, sample.size = 150, rngseed = 92)
+
+################################################################################
+# Agglomerate taxa ----
+
+# Depending on the analyses, we may want to agglomerate to different taxonomic ranks.
+# Many of the sequence IDs do not go all the way to species, so in those cases analyses
+# at the species level wouldn't include those sequences
+coi_genus <- tax_glom(coi_ps2, taxrank = "genus")
+coi_fam <- tax_glom(coi_ps2, taxrank = "family")
+coi_ord <- tax_glom(coi_ps2, taxrank = "order")
+
+# Merge family to life history
+life_history <- read.csv(here("5_other_outputs", "unique_families_aquatic_terrestrial_IDs.csv"))    # prepared outside of R
+otu_lh <- plyr::join(as.data.frame(tax_table(coi_fam)), life_history, "family", "left", "first")
+coi_fam2 <- phyloseq(
+  otu_table(coi_fam),
+  tax_table(as.matrix(otu_lh)),
+  sample_data(coi_fam)
+)
+
+glom_ps <- coi_fam2    # change here which agglomeration you want to use for plots below
+
+################################################################################
+# Filtering criteria ----
+
+# Remove negative controls
+glom_ps <- subset_samples(glom_ps, age != "neg_control")
+
+# Remove OTUs with less than 5 reads in a sample aka 5-tons
+# (could change to singletons, 50-tons, or whatever)
+coi_ps2 <- prune_taxa(taxa_sums(glom_ps) > 5, glom_ps)
+
+# Transform to relative abundance
+coi_ra <- transform_sample_counts(coi_ps2, function(x) x / sum(x))
+
+## Filter out taxa with relative abundance values below some threshold
+coi_ra2 <- filter_taxa(coi_ra, function(x) mean(x) > 1e-5, TRUE)
+
+# Take out the old test samples
+coi_ra2 <- subset_samples(coi_ra2, age.1 != "old")
+
+# Take out the testing samples from 2019 (were labelled as M19NXXX and do not have nest information)
+coi_ra2 <- subset_samples(coi_ra2, is.na(nest) == FALSE)
+
+# Transform to presence absence
+coi_pa <- transform_sample_counts(coi_ra2, function(x) ceiling(x))
+
+# Limit to genera in 20% of samples
+coi_20 <- prune_taxa(genefilter_sample(coi_pa, filterfun_sample(function(x) x > 0.1), A = 0.2 * nsamples(coi_pa)), coi_pa)
+
+# Limit to genera in 5% of samples (for network below)
+coi_05 <- prune_taxa(genefilter_sample(coi_pa, filterfun_sample(function(x) x > 0.1), A = 0.05 * nsamples(coi_pa)), coi_pa)
+
+################################################################################
+# Plot Patterns: Select objects to plot ----
+
+# Note that we will use coi_ra2 for plots for relative abundance, and 
+# coi_pa for plots for presence/absence.
+
+################################################################################
+# Plot Patterns: Richness ----
+
+# Richness by sample type. See help for many more options of different alpha metrics
+# Cannot use coi_ra2 here because plot_richness only accepts integers
+p <- plot_richness(coi_pa, x = "age.1", measures = c("Observed", "InvSimpson", "Shannon")) + 
+  geom_boxplot(alpha = 0.3, aes(fill = age.1))
+# set order for ages for neatness in plots 
+age_order = c("6", "12", "15", "SY", "ASY", "AHY")
+p$data$age.1 <- as.character(p$data$age.1)
+p$data$age.1 <- factor(p$data$age.1, levels=age_order)
+ggsave(here("3_r_scripts/age_alpha.png"), p, width = 10, height = 4, device = "png")
+
+# Richness by age (nestling days and adult years) and site
+p <- plot_richness(coi_pa, x = "age.1", measures = c("Observed")) +
+  geom_boxplot(alpha = 0.3, aes(fill = age.1)) + facet_wrap(~ site) +
+  xlab("Age") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12)) + 
+  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
+  theme(axis.title = element_text(size = 16)) +
+  theme(strip.text = element_text(size = 16)) +
+  guides(fill=guide_legend(title="Age"))
+# set order for sites for neatness in plots 
+site_order = c("Turkey_Hill", "Unit_4", "Unit_1", "Unit_2")
+p$data$site <- as.character(p$data$site)
+p$data$site <- factor(p$data$site, levels=site_order)
+# set order for ages for neatness in plots 
+age_order = c("6", "12", "15", "SY", "ASY", "AHY")
+p$data$age.1 <- as.character(p$data$age.1)
+p$data$age.1 <- factor(p$data$age.1, levels=age_order)
+ggsave(here("3_r_scripts/age_alpha_site.png"), p, width = 9, height = 6.5, device = "png")
+
+# Richness by age (just nestling vs. adult) and site
+p <- plot_richness(coi_pa, x = "age", measures = c("Observed")) +
+  geom_boxplot(alpha = 0.3, aes(fill = age)) + facet_wrap(~ site) +
+  xlab("Age") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12)) + 
+  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
+  theme(axis.title = element_text(size = 16)) +
+  theme(strip.text = element_text(size = 16)) +
+  guides(fill=guide_legend(title="Age"))
+# set order for sites for neatness in plots 
+site_order = c("Turkey_Hill", "Unit_4", "Unit_1", "Unit_2")
+p$data$site <- as.character(p$data$site)
+p$data$site <- factor(p$data$site, levels=site_order)
+ggsave(here("3_r_scripts/age_nva_alpha_site.png"), p, width = 7, height = 7, device = "png")
+
+# Richness by adult capture number and site
+coi_adults <- subset_samples(coi_pa, cap_num != "")
+p <- plot_richness(coi_adults, x = "cap_num", measures = c("Observed")) + 
+  geom_boxplot(alpha = 0.3, aes(fill = cap_num)) + facet_wrap(~ site)
+ggsave(here("3_r_scripts/capnum_alpha_site.png"), p, width = 9, height = 6.5, device = "png")
+
+# Richness by day of year
+# First look at richness with a series of box plots
+p <- plot_richness(coi_pa, x = "cap_doy", measures = c("Observed")) + 
+  geom_boxplot(alpha = 0.3, aes(fill = age.1)) + facet_wrap(~ site)
+# Now look at richness as a loess curve
+richness <- data.table(p$data)
+richness$cap_doy <- as.numeric(richness$cap_doy)
+p <- ggplot(richness, mapping = aes(x = cap_doy, y = value)) + geom_point() + geom_smooth(method = "loess") +
+  xlab("Capture day of year") + ylab("Alpha Diversity Measure") + facet_wrap(~ age, ncol = 1) +
+  theme_classic() +
+  theme(axis.text = element_text(size = 14)) + 
+  theme(axis.title = element_text(size = 16)) +
+  theme(strip.text = element_text(size = 16))
+ggsave(here("3_r_scripts/age_site_richness.png"), p, width = 8.7, height = 6.8, device = "png")
+
+################################################################################
+# Plot Patterns: Taxonomic Groups ----        
+# All genera
+p <- plot_bar(coi_pa, "family") + theme_classic() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+  geom_hline(yintercept = 393 * 0.1, linetype = "dotted", col = "coral3") + 
+  geom_hline(yintercept = 393 * 0.2, linetype = "dotted", col = "coral3") + 
+  geom_hline(yintercept = 393 * 0.3, linetype = "dotted", col = "coral3")
+ggsave(here("3_r_scripts/family_bar.png"), width = 10, height = 4.5, device = "png")
+
+# Genera over 20% split by age
+p <- plot_bar(coi_20, "family", fill="life_history") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + 
+  facet_wrap(~ age, ncol = 1)
+ggsave(here("3_r_scripts/common_families.png"), width = 10, height = 6, device = "png")
+# Create a figure that has families color coded by life history
+# phyloseq automatically draws black borders around every sample which makes it impossible to see the colors of 
+# aquatic vs. terrestrial samples.
+# We will have to redefine the function to get it to stop doing this (I found this code on stack overflow)
+plot_bar_2 <-  function (physeq, x = "Sample", y = "Abundance", fill = NULL, title = NULL, facet_grid = NULL, border_color = NA) 
+{
+  mdf = psmelt(physeq)
+  p = ggplot(mdf, aes_string(x = x, y = y, fill = fill))
+  p = p + geom_bar(stat = "identity", position = "stack",  color = border_color)
+  p = p + theme(axis.text.x = element_text(angle = -90, hjust = 0))
+  if (!is.null(facet_grid)) {
+    p <- p + facet_grid(facet_grid)
+  }
+  if (!is.null(title)) {
+    p <- p + ggtitle(title)
+  }
+  return(p)
+}
+
+p <- plot_bar_2(coi_20, x="family", fill="life_history") + 
+  xlab("Family") +
+  ylab("Number of samples detected in") +
+  theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12)) + 
+  theme(axis.title = element_text(size = 14)) +
+  theme(legend.title = element_text(size = 14), legend.text = element_text(size = 12)) +
+  theme(strip.text = element_text(size = 12)) +
+  facet_wrap(~ age, ncol = 1) +
+  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
+                                               "unknown" = "gray"))
+ggsave(here("3_r_scripts/common_families.png"), width = 10, height = 6, device = "png")
+
+################################################################################
+# Plot Patterns: Aquatic vs. Terrestrial ----
+# Plot some aquatic vs. terrestrial plots across age and site
+
+# Plot aquatic vs. terrestrial for sites, adults vs. nestlings
+plot_ra <- psmelt(coi_ra2) # psmelt makes a phyloseq object into a data frame
+p <- ggplot(plot_ra, aes(x=age, y=Abundance, fill=life_history)) +
+  geom_col(position="fill") +
+  facet_wrap(~ site, ncol = 2) +
+  xlab("Age") +
+  ylab("Relative Abundance") +
+  theme_classic() +
+  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
+  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
+  theme(strip.text = element_text(size = 14)) +
+  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
+                                               "unknown" = "gray"))
+# set order for sites for neatness in plots 
+site_order = c("Turkey_Hill", "Unit_4", "Unit_1", "Unit_2")
+p$data$site <- as.character(p$data$site)
+p$data$site <- factor(p$data$site, levels=site_order)
+
+ggsave(here("3_r_scripts/lh_age_site.png"), p, width = 7, height = 7, device = "png")
+
+# Plot aquatic vs. terrestrial for adults and nestlings full ages
+p1 <- ggplot(plot_ra, aes(x=age.1, y=Abundance, fill=life_history)) +
+  geom_col(position="fill") +
+  facet_wrap(~ site, ncol = 2) +
+  xlab("Age") +
+  ylab("Relative Abundance") +
+  theme_classic() +
+  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
+  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
+  theme(strip.text = element_text(size = 14)) +
+  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
+                                               "unknown" = "gray"))
+# set order for ages for neatness in plots
+age_order = c("6", "12", "15", "SY", "ASY", "AHY")
+p1$data$age.1 <- as.character(p$data$age.1)
+p1$data$age.1 <- factor(p$data$age.1, levels=age_order) 
+
+ggsave(here("3_r_scripts/lh_age1_site.png"), p1, width = 10, height = 8, device = "png")
+
+# Plot aquatic vs. terrestrial across days
+p2 <- ggplot(plot_ra, aes(x=cap_doy, y=Abundance, fill=life_history)) +
+  geom_col(position="fill") +
+  xlab("Day of Year") +
+  ylab("Relative Abundance") +
+  theme_classic() +
+  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
+  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
+  theme(strip.text = element_text(size = 14)) +
+  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
+                                               "unknown" = "gray"))
+
+ggsave(here("3_r_scripts/lh_doy.png"), p2, width = 10, height = 8, device = "png")
+
+# Plot aquatic vs. terrestrial across days and separated by adults vs. nestlings
+p3 <- ggplot(plot_ra, aes(x=cap_doy, y=Abundance, fill=life_history)) +
+  geom_col(position="fill") +
+  facet_wrap(~ age, ncol = 1) +
+  xlab("Day of Year") +
+  ylab("Relative Abundance") +
+  theme_classic() +
+  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
+  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
+  theme(strip.text = element_text(size = 14)) +
+  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
+                                               "unknown" = "gray"))
+
+ggsave(here("3_r_scripts/lh_doy_age.png"), p3, width = 10, height = 8, device = "png")
