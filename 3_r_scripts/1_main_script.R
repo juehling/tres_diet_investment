@@ -1,6 +1,6 @@
 ###
 # Written by: Conor Taff, Jenny Uehling, and Paige Becker
-# Last updated: 2/24/2021
+# Last updated: 2/26/2021
 # Run under R Studio XX on XX
 
 # This is the main analysis script for processing the COI data after running through
