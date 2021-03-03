@@ -219,8 +219,9 @@ write.csv(unique_families_pi, here("5_other_outputs/unique_families_pi.csv"))
 # Check sample effort ----
 
 # Histogram of sample reads. This is counting a sum of arthropod reads for each sample.
-depth <- data.frame(as(sample_data(coi_ps2), "data.frame"),
-                    TotalReads = sample_sums(coi_ps2), keep.rownames = TRUE)
+coi_ps2_wild <- subset_samples(coi_ps2, site != "Gut_passage") # take out gut passage time birds
+depth <- data.frame(as(sample_data(coi_ps2_wild), "data.frame"),
+                    TotalReads = sample_sums(coi_ps2_wild), keep.rownames = TRUE)
 p <- ggplot(depth, aes(log(TotalReads))) + geom_histogram(fill = "slateblue") + 
   ylab("Count of Samples") + xlab("log(Reads)") +
   theme_classic() + geom_vline(xintercept = log(150), linetype = "dashed", col = "coral3", size = 1) + 
@@ -237,9 +238,8 @@ depth <- data.frame(as(sample_data(coi_ps2_captive), "data.frame"),
                     TotalReads = sample_sums(coi_ps2_captive), keep.rownames = TRUE)
 p_cap <- ggplot(depth, aes(log(TotalReads))) + geom_histogram(fill = "slateblue") + 
   ylab("Count of Samples") + xlab("log(Reads)") +
-  theme_classic() + geom_vline(xintercept = log(150), linetype = "dashed", col = "coral3", size = 1) +
-  xlim(0,10)
-p2_cap <- p_cap + facet_grid(~ age.1) # same but splitting out adult/nestling/negative_control
+  theme_classic() + geom_vline(xintercept = log(150), linetype = "dashed", col = "coral3", size = 1)
+p2_cap <- p_cap + facet_wrap(~ age.1, ncol = 1) # same but splitting out age (by day)
 # set order for ages for neatness in plots 
 age_order = c("6", "7", "8", "9", "10", "11", "12")
 p2_cap$data$age.1 <- as.character(p2_cap$data$age.1)
@@ -247,7 +247,7 @@ p2_cap$data$age.1 <- factor(p2_cap$data$age.1, levels=age_order)
 
 # Save the histograms to file to be added to the markdown
 ggsave(here("3_r_scripts/total_reads_cap.png"), plot = p_cap, width = 8, height = 4.5, device = "png")
-ggsave(here("3_r_scripts/total_reads_split_cap.png"), plot = p2_cap, width = 8.2, height = 4, device = "png")
+ggsave(here("3_r_scripts/total_reads_split_cap.png"), plot = p2_cap, width = 4, height = 8, device = "png")
 
 # Rarefy to even depth of 150
 # running this would rarefy to an even depth moving forward
@@ -306,86 +306,33 @@ coi_05 <- prune_taxa(genefilter_sample(coi_pa, filterfun_sample(function(x) x > 
 # coi_pa for plots for presence/absence.
 
 ################################################################################
-# Plot Patterns: Richness ----
+# Plot Patterns: Taxonomic Groups ----
 
-# Richness by sample type. See help for many more options of different alpha metrics
-# Cannot use coi_ra2 here because plot_richness only accepts integers
-p <- plot_richness(coi_pa, x = "age.1", measures = c("Observed", "InvSimpson", "Shannon")) + 
-  geom_boxplot(alpha = 0.3, aes(fill = age.1))
-# set order for ages for neatness in plots 
-age_order = c("6", "12", "15", "SY", "ASY", "AHY")
-p$data$age.1 <- as.character(p$data$age.1)
-p$data$age.1 <- factor(p$data$age.1, levels=age_order)
-ggsave(here("3_r_scripts/age_alpha.png"), p, width = 10, height = 4, device = "png")
+# We'll start with some general exploration of the data. What types of families
+# are we seeing, and how are they represented? Which families are most common?
 
-# Richness by age (nestling days and adult years) and site
-p <- plot_richness(coi_pa, x = "age.1", measures = c("Observed")) +
-  geom_boxplot(alpha = 0.3, aes(fill = age.1)) + facet_wrap(~ site) +
-  xlab("Age") +
-  theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12)) + 
-  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
-  theme(axis.title = element_text(size = 16)) +
-  theme(strip.text = element_text(size = 16)) +
-  guides(fill=guide_legend(title="Age"))
-# set order for sites for neatness in plots 
-site_order = c("Turkey_Hill", "Unit_4", "Unit_1", "Unit_2")
-p$data$site <- as.character(p$data$site)
-p$data$site <- factor(p$data$site, levels=site_order)
-# set order for ages for neatness in plots 
-age_order = c("6", "12", "15", "SY", "ASY", "AHY")
-p$data$age.1 <- as.character(p$data$age.1)
-p$data$age.1 <- factor(p$data$age.1, levels=age_order)
-ggsave(here("3_r_scripts/age_alpha_site.png"), p, width = 9, height = 6.5, device = "png")
+######### Examine all families
 
-# Richness by age (just nestling vs. adult) and site
-p <- plot_richness(coi_pa, x = "age", measures = c("Observed")) +
-  geom_boxplot(alpha = 0.3, aes(fill = age)) + facet_wrap(~ site) +
-  xlab("Age") +
-  theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12)) + 
-  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
-  theme(axis.title = element_text(size = 16)) +
-  theme(strip.text = element_text(size = 16)) +
-  guides(fill=guide_legend(title="Age"))
-# set order for sites for neatness in plots 
-site_order = c("Turkey_Hill", "Unit_4", "Unit_1", "Unit_2")
-p$data$site <- as.character(p$data$site)
-p$data$site <- factor(p$data$site, levels=site_order)
-ggsave(here("3_r_scripts/age_nva_alpha_site.png"), p, width = 7, height = 7, device = "png")
+# First, let's only use samples that were collected from birds in the wild
+coi_pa_wild <- subset_samples(coi_pa, site != "Gut_passage")
 
-# Richness by adult capture number and site
-coi_adults <- subset_samples(coi_pa, cap_num != "")
-p <- plot_richness(coi_adults, x = "cap_num", measures = c("Observed")) + 
-  geom_boxplot(alpha = 0.3, aes(fill = cap_num)) + facet_wrap(~ site)
-ggsave(here("3_r_scripts/capnum_alpha_site.png"), p, width = 9, height = 6.5, device = "png")
-
-# Richness by day of year
-# First look at richness with a series of box plots
-p <- plot_richness(coi_pa, x = "cap_doy", measures = c("Observed")) + 
-  geom_boxplot(alpha = 0.3, aes(fill = age.1)) + facet_wrap(~ site)
-# Now look at richness as a loess curve
-richness <- data.table(p$data)
-richness$cap_doy <- as.numeric(richness$cap_doy)
-p <- ggplot(richness, mapping = aes(x = cap_doy, y = value)) + geom_point() + geom_smooth(method = "loess") +
-  xlab("Capture day of year") + ylab("Alpha Diversity Measure") + facet_wrap(~ age, ncol = 1) +
-  theme_classic() +
-  theme(axis.text = element_text(size = 14)) + 
-  theme(axis.title = element_text(size = 16)) +
-  theme(strip.text = element_text(size = 16))
-ggsave(here("3_r_scripts/age_site_richness.png"), p, width = 8.7, height = 6.8, device = "png")
-
-################################################################################
-# Plot Patterns: Taxonomic Groups ----        
 # All genera
-p <- plot_bar(coi_pa, "family") + theme_classic() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
+p <- plot_bar(coi_pa_wild, "family") + theme_classic() + theme(axis.text.x = element_blank(), axis.ticks.x = element_blank()) + 
   geom_hline(yintercept = 393 * 0.1, linetype = "dotted", col = "coral3") + 
   geom_hline(yintercept = 393 * 0.2, linetype = "dotted", col = "coral3") + 
   geom_hline(yintercept = 393 * 0.3, linetype = "dotted", col = "coral3")
 ggsave(here("3_r_scripts/family_bar.png"), width = 10, height = 4.5, device = "png")
 
-# Genera over 20% split by age
-p <- plot_bar(coi_20, "family", fill="life_history") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + 
+# This is pretty overwhelming and not super useful to look at.
+
+######### Examine genera over 20% split by age
+
+# Again, only use samples that were collected from birds in the wild
+coi_20_wild <- subset_samples(coi_20, site != "Gut_passage")
+
+p <- plot_bar(coi_20_wild, "family", fill="life_history") + theme_classic() + theme(axis.text.x = element_text(angle = 90)) + 
   facet_wrap(~ age, ncol = 1)
-ggsave(here("3_r_scripts/common_families.png"), width = 10, height = 6, device = "png")
+
 # Create a figure that has families color coded by life history
 # phyloseq automatically draws black borders around every sample which makes it impossible to see the colors of 
 # aquatic vs. terrestrial samples.
@@ -418,73 +365,132 @@ p <- plot_bar_2(coi_20, x="family", fill="life_history") +
 ggsave(here("3_r_scripts/common_families.png"), width = 10, height = 6, device = "png")
 
 ################################################################################
-# Plot Patterns: Aquatic vs. Terrestrial ----
-# Plot some aquatic vs. terrestrial plots across age and site
+# Create data frame with the percent aquatic in each sample
 
-# Plot aquatic vs. terrestrial for sites, adults vs. nestlings
+# Before we address any of the questions for Paige's honors thesis, we need to identify
+# the overall relative abundance of aquatic insects in each bird's diet.
+
 plot_ra <- psmelt(coi_ra2) # psmelt makes a phyloseq object into a data frame
-p <- ggplot(plot_ra, aes(x=age, y=Abundance, fill=life_history)) +
-  geom_col(position="fill") +
-  facet_wrap(~ site, ncol = 2) +
-  xlab("Age") +
-  ylab("Relative Abundance") +
-  theme_classic() +
-  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
-  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
-  theme(strip.text = element_text(size = 14)) +
-  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
-                                               "unknown" = "gray"))
-# set order for sites for neatness in plots 
-site_order = c("Turkey_Hill", "Unit_4", "Unit_1", "Unit_2")
-p$data$site <- as.character(p$data$site)
-p$data$site <- factor(p$data$site, levels=site_order)
 
-ggsave(here("3_r_scripts/lh_age_site.png"), p, width = 7, height = 7, device = "png")
+# Identify the unique samples
+sample <- unique(plot_ra$sampleID)
 
-# Plot aquatic vs. terrestrial for adults and nestlings full ages
-p1 <- ggplot(plot_ra, aes(x=age.1, y=Abundance, fill=life_history)) +
-  geom_col(position="fill") +
-  facet_wrap(~ site, ncol = 2) +
-  xlab("Age") +
-  ylab("Relative Abundance") +
-  theme_classic() +
-  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
-  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
-  theme(strip.text = element_text(size = 14)) +
-  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
-                                               "unknown" = "gray"))
-# set order for ages for neatness in plots
-age_order = c("6", "12", "15", "SY", "ASY", "AHY")
-p1$data$age.1 <- as.character(p$data$age.1)
-p1$data$age.1 <- factor(p$data$age.1, levels=age_order) 
+# Create an empty dataframe to store relative abundance information
+rel_ab_aq <- data.frame(matrix(NA, ncol = 2, nrow = length(sample)))
+rel_ab_aq <- data.frame()
+  
+for (i in 1:length(sample)){
+  sam <- sample[i] # identify sample
+  list <- plot_ra[plot_ra$sampleID == sam ,] # pull out all records from plot_ra that have that sample ID
+  list_aq <- list[list$life_history == "aquatic" ,] # of those records, pull out only those that have aquatic life histories
+  rel_ab <- sum(list_aq$Abundance) # sum up all of the percentages of aquatic insects for that sample
+  rel_ab_aq[i,1] <- sam # save the sample name
+  rel_ab_aq[i,2] <- rel_ab # save the total aquatic relative abundance
+}
 
-ggsave(here("3_r_scripts/lh_age1_site.png"), p1, width = 10, height = 8, device = "png")
+# Name columns
+names(rel_ab_aq)[names(rel_ab_aq) == "V1"] <- "sampleID"
+names(rel_ab_aq)[names(rel_ab_aq) == "V2"] <- "percent_aquatic"
 
-# Plot aquatic vs. terrestrial across days
-p2 <- ggplot(plot_ra, aes(x=cap_doy, y=Abundance, fill=life_history)) +
-  geom_col(position="fill") +
-  xlab("Day of Year") +
-  ylab("Relative Abundance") +
-  theme_classic() +
-  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
-  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
-  theme(strip.text = element_text(size = 14)) +
-  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
-                                               "unknown" = "gray"))
+# Add in sample information
+rel_ab_aq <- merge(rel_ab_aq, s_info, by = "sampleID", all.x = TRUE, all.y = FALSE)
 
-ggsave(here("3_r_scripts/lh_doy.png"), p2, width = 10, height = 8, device = "png")
+# Check to make sure that the data are classified correctly
+str(rel_ab_aq)
 
-# Plot aquatic vs. terrestrial across days and separated by adults vs. nestlings
-p3 <- ggplot(plot_ra, aes(x=cap_doy, y=Abundance, fill=life_history)) +
-  geom_col(position="fill") +
-  facet_wrap(~ age, ncol = 1) +
-  xlab("Day of Year") +
-  ylab("Relative Abundance") +
-  theme_classic() +
-  theme(axis.title = element_text(size = 16)) + theme(axis.text.x = element_text(angle = 90, size = 14)) +
-  theme(legend.title = element_text(size = 16), legend.text = element_text(size = 14)) +
-  theme(strip.text = element_text(size = 14)) +
-  scale_fill_manual("Life history", values = c("aquatic" = "skyblue1", "terrestrial" = "palegreen3", "both" = "tan4", 
-                                               "unknown" = "gray"))
+################################################################################
+# Question 1: What is the relationship between female mass and the proportion
+# of aquatic insects in her diet?
 
-ggsave(here("3_r_scripts/lh_doy_age.png"), p3, width = 10, height = 8, device = "png")
+rel_ab_aq_ad <- rel_ab_aq[rel_ab_aq$age == "Adult" ,]
+
+# Examine first adult capture
+rel_ab_aq_ad_cap1 <- rel_ab_aq_ad[rel_ab_aq_ad$cap_num == "1" ,]
+q1_cap1 <- plot(rel_ab_aq_ad_cap1$percent_aquatic, rel_ab_aq_ad_cap1$mass)
+
+prelim_model.cap1 <- lm(percent_aquatic ~ mass + site + treatment, data = rel_ab_aq_ad_cap1)
+summary(prelim_model.cap1)
+
+# Examine second adult capture
+rel_ab_aq_ad_cap2 <- rel_ab_aq_ad[rel_ab_aq_ad$cap_num != "1" ,]
+plot(rel_ab_aq_ad_cap2$percent_aquatic, rel_ab_aq_ad_cap2$mass)
+
+prelim_model.cap2 <- lm(percent_aquatic ~ mass + site + treatment, data = rel_ab_aq_ad_cap2)
+summary(prelim_model.cap2)
+
+boxplot(percent_aquatic~treatment*site, data = rel_ab_aq_ad_cap2[rel_ab_aq_ad_cap2$experiment == "CortMovement",])
+
+################################################################################
+# Question 2: How do the proportions of aquatic insects in the adult diet compare
+# to the proportions of aquatic insects in the diet of their nestlings?
+
+# Subset data to exclude captive nestling samples
+rel_ab_aq_wild <- rel_ab_aq[rel_ab_aq$site == "Unit_4" | rel_ab_aq$site == "Turkey_Hill" ,]
+
+# Filter data just to adult and nestling captures during provisioning
+# (i.e. take out first adult captures during provisioning)
+rel_ab_aq_wild_ad <- rel_ab_aq_wild[rel_ab_aq_wild$cap_num != "1" & rel_ab_aq_wild$age == "Adult" ,]
+rel_ab_aq_wild_nest <- rel_ab_aq_wild[rel_ab_aq_wild$age == "Nestling" ,]
+rel_ab_aq_wild_prov <- rbind(rel_ab_aq_wild_ad, rel_ab_aq_wild_nest)
+
+boxplot(percent_aquatic~age*site, data = rel_ab_aq_wild_prov)
+
+################################################################################
+# Question 3: Relationship between adult and nestling diet content
+
+# Create column for unit_box
+rel_ab_aq_wild_prov$site_box <- paste(rel_ab_aq_wild_prov$site, rel_ab_aq_wild_prov$nest, rel_ab_aq_wild_prov$year, sep="_")
+
+# Pull out nestlings to average across nest
+rel_ab_wild_prov_n <- rel_ab_aq_wild_prov[rel_ab_aq_wild_prov$age == "Nestling" ,]
+
+# Create an empty dataframe to store relative abundance information for each nest
+nests <- unique(rel_ab_wild_prov_n$site_box)
+rel_ab_wild_prov_npooled <- data.frame(matrix(NA, ncol = 2, nrow = length(nests)))
+rel_ab_wild_prov_npooled <- data.frame()
+
+# Calculate average aquatic percentage for the nestlings in each nest
+for (i in 1:length(nests)){
+  nest <- nests[i] # identify nest
+  list <- rel_ab_wild_prov_n[rel_ab_wild_prov_n$site_box == nest ,] # pull out all nestlings from that nest
+  mean_aq <- mean(list$percent_aquatic) # average % aquatic insects
+  rel_ab_wild_prov_npooled[i,1] <- nest # save the nest name
+  rel_ab_wild_prov_npooled[i,2] <- mean_aq # save the total aquatic relative abundance
+}
+
+# Name columns
+names(rel_ab_wild_prov_npooled)[names(rel_ab_wild_prov_npooled) == "V1"] <- "site_box"
+names(rel_ab_wild_prov_npooled)[names(rel_ab_wild_prov_npooled) == "V2"] <- "percent_aquatic_nestlings_mean"
+
+# Pull out adults
+rel_ab_wild_prov_a <- rel_ab_aq_wild_prov[rel_ab_aq_wild_prov$age == "Adult" ,]
+
+# Combine adults with pooled nestling percentages
+rel_ab_wild_prov_a <- merge(rel_ab_wild_prov_a, rel_ab_wild_prov_npooled, by = "site_box")
+
+plot(percent_aquatic_nestlings_mean~percent_aquatic, data = rel_ab_wild_prov_a)
+
+prelim_model.q3 <- lm(percent_aquatic_nestlings_mean ~ percent_aquatic + site + treatment, data = rel_ab_wild_prov_a)
+summary(prelim_model.q3)
+
+################################################################################
+# Captive nestling gut passage samples ----
+
+coi_pa_cap <- subset_samples(coi_pa, site == "Gut_passage")
+
+# All genera
+p <- plot_bar(coi_pa_cap, "family") + theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12))
+p <- p + facet_grid(~ age.1)
+age_order = c("6", "7", "8", "9", "10", "11", "12")
+p$data$age.1 <- as.character(p$data$age.1)
+p$data$age.1 <- factor(p$data$age.1, levels=age_order)
+
+ggsave(here("3_r_scripts/family_bar.png"), width = 10, height = 4.5, device = "png")
+
+# Try just certain days for readability
+
+coi_pa_cap_12 <- subset_samples(coi_pa_cap, age.1 == "12")
+p <- plot_bar(coi_pa_cap_12, "family") + theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12))
+
+coi_pa_cap_11 <- subset_samples(coi_pa_cap, age.1 == "11")
+p <- plot_bar(coi_pa_cap_11, "family") + theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12))
