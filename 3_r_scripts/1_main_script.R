@@ -1,6 +1,6 @@
 ###
 # Written by: Conor Taff, Jenny Uehling, and Paige Becker
-# Last updated: 2/26/2021
+# Last updated: 3/7/2021
 # Run under R Studio XX on XX
 
 # This is the main analysis script for processing the COI data after running through
@@ -12,7 +12,7 @@
 ################################################################################
 # Load libraries ----
 
-pacman::p_load("tidyverse", "phyloseq", "plyr", "vegan", "here", "ggpubr", "igraph", "data.table", "dplyr")
+pacman::p_load("tidyverse", "phyloseq", "plyr", "vegan", "here", "ggpubr", "igraph", "data.table", "dplyr", "car")
 # tidyverse & plyr for data wrangling
 # phyloseq & vegan for community analyses and plotting
 # here for file reference by relative paths
@@ -247,7 +247,7 @@ p2_cap$data$age.1 <- factor(p2_cap$data$age.1, levels=age_order)
 
 # Save the histograms to file to be added to the markdown
 ggsave(here("3_r_scripts/total_reads_cap.png"), plot = p_cap, width = 8, height = 4.5, device = "png")
-ggsave(here("3_r_scripts/total_reads_split_cap.png"), plot = p2_cap, width = 4, height = 8, device = "png")
+ggsave(here("3_r_scripts/total_reads_split_cap.png"), plot = p2_cap, width = 4, height = 6, device = "png")
 
 # Rarefy to even depth of 150
 # running this would rarefy to an even depth moving forward
@@ -295,9 +295,6 @@ coi_pa <- transform_sample_counts(coi_ra2, function(x) ceiling(x))
 
 # Limit to genera in 20% of samples
 coi_20 <- prune_taxa(genefilter_sample(coi_pa, filterfun_sample(function(x) x > 0.1), A = 0.2 * nsamples(coi_pa)), coi_pa)
-
-# Limit to genera in 5% of samples (for network below)
-coi_05 <- prune_taxa(genefilter_sample(coi_pa, filterfun_sample(function(x) x > 0.1), A = 0.05 * nsamples(coi_pa)), coi_pa)
 
 ################################################################################
 # Plot Patterns: Select objects to plot ----
@@ -365,113 +362,13 @@ p <- plot_bar_2(coi_20, x="family", fill="life_history") +
 ggsave(here("3_r_scripts/common_families.png"), width = 10, height = 6, device = "png")
 
 ################################################################################
-# Create data frame with the percent aquatic in each sample
-
-# Before we address any of the questions for Paige's honors thesis, we need to identify
-# the overall relative abundance of aquatic insects in each bird's diet.
+# Export files for analyses for Paige's thesis (performed in R Markdown)  ----
 
 plot_ra <- psmelt(coi_ra2) # psmelt makes a phyloseq object into a data frame
+write.csv(plot_ra, "plot_ra.csv")
 
-# Identify the unique samples
-sample <- unique(plot_ra$sampleID)
-
-# Create an empty dataframe to store relative abundance information
-rel_ab_aq <- data.frame(matrix(NA, ncol = 2, nrow = length(sample)))
-rel_ab_aq <- data.frame()
-  
-for (i in 1:length(sample)){
-  sam <- sample[i] # identify sample
-  list <- plot_ra[plot_ra$sampleID == sam ,] # pull out all records from plot_ra that have that sample ID
-  list_aq <- list[list$life_history == "aquatic" ,] # of those records, pull out only those that have aquatic life histories
-  rel_ab <- sum(list_aq$Abundance) # sum up all of the percentages of aquatic insects for that sample
-  rel_ab_aq[i,1] <- sam # save the sample name
-  rel_ab_aq[i,2] <- rel_ab # save the total aquatic relative abundance
-}
-
-# Name columns
-names(rel_ab_aq)[names(rel_ab_aq) == "V1"] <- "sampleID"
-names(rel_ab_aq)[names(rel_ab_aq) == "V2"] <- "percent_aquatic"
-
-# Add in sample information
-rel_ab_aq <- merge(rel_ab_aq, s_info, by = "sampleID", all.x = TRUE, all.y = FALSE)
-
-# Check to make sure that the data are classified correctly
-str(rel_ab_aq)
-
-################################################################################
-# Question 1: What is the relationship between female mass and the proportion
-# of aquatic insects in her diet?
-
-rel_ab_aq_ad <- rel_ab_aq[rel_ab_aq$age == "Adult" ,]
-
-# Examine first adult capture
-rel_ab_aq_ad_cap1 <- rel_ab_aq_ad[rel_ab_aq_ad$cap_num == "1" ,]
-q1_cap1 <- plot(rel_ab_aq_ad_cap1$percent_aquatic, rel_ab_aq_ad_cap1$mass)
-
-prelim_model.cap1 <- lm(percent_aquatic ~ mass + site + treatment, data = rel_ab_aq_ad_cap1)
-summary(prelim_model.cap1)
-
-# Examine second adult capture
-rel_ab_aq_ad_cap2 <- rel_ab_aq_ad[rel_ab_aq_ad$cap_num != "1" ,]
-plot(rel_ab_aq_ad_cap2$percent_aquatic, rel_ab_aq_ad_cap2$mass)
-
-prelim_model.cap2 <- lm(percent_aquatic ~ mass + site + treatment, data = rel_ab_aq_ad_cap2)
-summary(prelim_model.cap2)
-
-boxplot(percent_aquatic~treatment*site, data = rel_ab_aq_ad_cap2[rel_ab_aq_ad_cap2$experiment == "CortMovement",])
-
-################################################################################
-# Question 2: How do the proportions of aquatic insects in the adult diet compare
-# to the proportions of aquatic insects in the diet of their nestlings?
-
-# Subset data to exclude captive nestling samples
-rel_ab_aq_wild <- rel_ab_aq[rel_ab_aq$site == "Unit_4" | rel_ab_aq$site == "Turkey_Hill" ,]
-
-# Filter data just to adult and nestling captures during provisioning
-# (i.e. take out first adult captures during provisioning)
-rel_ab_aq_wild_ad <- rel_ab_aq_wild[rel_ab_aq_wild$cap_num != "1" & rel_ab_aq_wild$age == "Adult" ,]
-rel_ab_aq_wild_nest <- rel_ab_aq_wild[rel_ab_aq_wild$age == "Nestling" ,]
-rel_ab_aq_wild_prov <- rbind(rel_ab_aq_wild_ad, rel_ab_aq_wild_nest)
-
-boxplot(percent_aquatic~age*site, data = rel_ab_aq_wild_prov)
-
-################################################################################
-# Question 3: Relationship between adult and nestling diet content
-
-# Create column for unit_box
-rel_ab_aq_wild_prov$site_box <- paste(rel_ab_aq_wild_prov$site, rel_ab_aq_wild_prov$nest, rel_ab_aq_wild_prov$year, sep="_")
-
-# Pull out nestlings to average across nest
-rel_ab_wild_prov_n <- rel_ab_aq_wild_prov[rel_ab_aq_wild_prov$age == "Nestling" ,]
-
-# Create an empty dataframe to store relative abundance information for each nest
-nests <- unique(rel_ab_wild_prov_n$site_box)
-rel_ab_wild_prov_npooled <- data.frame(matrix(NA, ncol = 2, nrow = length(nests)))
-rel_ab_wild_prov_npooled <- data.frame()
-
-# Calculate average aquatic percentage for the nestlings in each nest
-for (i in 1:length(nests)){
-  nest <- nests[i] # identify nest
-  list <- rel_ab_wild_prov_n[rel_ab_wild_prov_n$site_box == nest ,] # pull out all nestlings from that nest
-  mean_aq <- mean(list$percent_aquatic) # average % aquatic insects
-  rel_ab_wild_prov_npooled[i,1] <- nest # save the nest name
-  rel_ab_wild_prov_npooled[i,2] <- mean_aq # save the total aquatic relative abundance
-}
-
-# Name columns
-names(rel_ab_wild_prov_npooled)[names(rel_ab_wild_prov_npooled) == "V1"] <- "site_box"
-names(rel_ab_wild_prov_npooled)[names(rel_ab_wild_prov_npooled) == "V2"] <- "percent_aquatic_nestlings_mean"
-
-# Pull out adults
-rel_ab_wild_prov_a <- rel_ab_aq_wild_prov[rel_ab_aq_wild_prov$age == "Adult" ,]
-
-# Combine adults with pooled nestling percentages
-rel_ab_wild_prov_a <- merge(rel_ab_wild_prov_a, rel_ab_wild_prov_npooled, by = "site_box")
-
-plot(percent_aquatic_nestlings_mean~percent_aquatic, data = rel_ab_wild_prov_a)
-
-prelim_model.q3 <- lm(percent_aquatic_nestlings_mean ~ percent_aquatic + site + treatment, data = rel_ab_wild_prov_a)
-summary(prelim_model.q3)
+plot_pa <- psmelt(coi_pa) # psmelt makes a phyloseq object into a data frame
+write.csv(plot_pa, "plot_pa.csv")
 
 ################################################################################
 # Captive nestling gut passage samples ----
