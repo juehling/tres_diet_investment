@@ -221,7 +221,7 @@ After calculating these metrics for each sample, we examined how they were relat
 
 p <- ggplot(aquatic, aes(x=percent_aquatic_ra, y = percent_aquatic_pa)) + geom_point() +
   geom_smooth(method=lm) + theme_classic() + xlab("Percent aquatic relative abundance") +
-  ylab("Percent aquatic presence absence")
+  ylab("Percent aquatic presence/absence")
 ggsave(here("3_r_scripts/percent_aquatic_compare.png"), width = 5, height = 4, device = "png")
 
 cor.test(aquatic$percent_aquatic_ra, aquatic$percent_aquatic_pa)
