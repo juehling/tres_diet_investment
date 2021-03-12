@@ -1,6 +1,6 @@
 ###
 # Written by: Conor Taff, Jenny Uehling, and Paige Becker
-# Last updated: 3/7/2021
+# Last updated: 3/10/2021
 # Run under R Studio XX on XX
 
 # This is the main analysis script for processing the COI data after running through
@@ -23,7 +23,37 @@ pacman::p_load("tidyverse", "phyloseq", "plyr", "vegan", "here", "ggpubr", "igra
 # To install phyloseq, must install BiocManager and then use the following command: BiocManager::install(c("phyloseq"))
 
 ################################################################################
-# Load and wrangle data ----
+# Load and wrangle tree swallow data ----
+
+s_info <- read.delim(here("1_raw_data", "tres_sample_info.txt"))    # prepared outside of AMPtk
+
+# Create column for unit_box_year to use to match up treatments with nestlings/nests
+s_info$site_box_year <- paste(s_info$site, s_info$nest, s_info$year, sep="_")
+
+# Import nest information, which has treatment categories
+nest_info <- read.csv(here("1_raw_data", "Nest_Records_11.18.2020.csv"))
+# Note: 4.7 from 2019 is not in the database. This error is going to be corrected.
+# For now, I have put a row in this raw data file that contains the bare minimum information necessary.
+
+# Create a column in nest_info that has the same information as site_box_year
+nest_info$site_box_year <- paste(nest_info$Site, nest_info$Nest, nest_info$Exp_Year, sep="_")
+
+# We're going to just delete the column that's already in "s_info" that has experiment and treatment.
+# This is because it does not have experiment/treatment information for nestlings, only for adults.
+# We're just going to re-import all the experiment info from the nest spreadsheet.
+s_info <- subset(s_info, select=-c(experiment, treatment))
+
+# Now, we'll extract just the columns we need from nest_info
+nest_info <- subset(nest_info, select=c(Nest_Experiment, Nest_Treatment, site_box_year))
+
+# Put nest experiment info in "s_info"
+s_info <- left_join(s_info, nest_info, by = "site_box_year")
+
+# Create a column that lists both the experiment AND the treatment
+s_info$exp_treat <- paste(s_info$Nest_Experiment, s_info$Nest_Treatment, sep="_")
+
+################################################################################
+# Load and wrangle sequencing data ----
 
 # the prefix used for AMPtk processing
 # this is set in amptk and all files produced there have this prefix
@@ -87,7 +117,6 @@ otu_tax_11 <- as.matrix(otu_tax_11)
 otu_tax_11_2 <- otu_tax_11[, 10:16]
 
 # Add in the sample information to each sample
-s_info <- read.delim(here("1_raw_data", "tres_sample_info.txt"))    # prepared outside of AMPtk
 map_11_2 <- join(map_11, s_info, "sampleID", "left", "first")
 rownames(map_11_2) <- map_11_2$X.SampleID
 
@@ -155,7 +184,6 @@ otu_tax_12 <- as.matrix(otu_tax_12)
 otu_tax_12_2 <- otu_tax_12[, 10:16]
 
 # Add in the sample information to each sample
-s_info <- read.delim(here("1_raw_data", "tres_sample_info.txt"))    # prepared outside of AMPtk
 map_12_2 <- join(map_12, s_info, "sampleID", "left", "first")
 rownames(map_12_2) <- map_12_2$X.SampleID
 
@@ -205,15 +233,6 @@ write.csv(unique_families, here("5_other_outputs/unique_families.csv"))
 
 # Subset just to the data we want for this project
 coi_ps2 <- subset_samples(coi_ps2, parental_investment_proj == "yes")
-
-# Extract the unique arthropod families found in the dataset JUST for parental
-# investment project
-unique_families_pi <- get_taxa_unique(coi_ps2, taxonomic.rank = "family")
-# Save file with list of unique families to use to research aquatic vs.
-# terrestrial families.
-write.csv(unique_families_pi, here("5_other_outputs/unique_families_pi.csv"))
-# This file was then taken out of R to research aquatic vs. terrestrial
-# families, and will be re-imported later.
 
 ################################################################################
 # Check sample effort ----
@@ -284,6 +303,10 @@ glom_ps <- subset_samples(glom_ps, age != "neg_control")
 # (could change to singletons, 50-tons, or whatever)
 coi_ps2 <- prune_taxa(taxa_sums(glom_ps) > 5, glom_ps)
 
+# Create a record of the seqeuncing depth of each sample before transforming to relative abundance
+depth_postprune <- data.frame(as(sample_data(coi_ps2), "data.frame"),
+                    TotalReads = sample_sums(coi_ps2), keep.rownames = TRUE)
+
 # Transform to relative abundance
 coi_ra <- transform_sample_counts(coi_ps2, function(x) x / sum(x))
 
@@ -297,20 +320,17 @@ coi_pa <- transform_sample_counts(coi_ra2, function(x) ceiling(x))
 coi_20 <- prune_taxa(genefilter_sample(coi_pa, filterfun_sample(function(x) x > 0.1), A = 0.2 * nsamples(coi_pa)), coi_pa)
 
 ################################################################################
-# Plot Patterns: Select objects to plot ----
-
-# Note that we will use coi_ra2 for plots for relative abundance, and 
-# coi_pa for plots for presence/absence.
-
-################################################################################
-# Plot Patterns: Taxonomic Groups ----
+# Plot Patterns in Taxonomic Groups ----
 
 # We'll start with some general exploration of the data. What types of families
 # are we seeing, and how are they represented? Which families are most common?
 
+# Note that we will use coi_ra2 for plots for relative abundance, and 
+# coi_pa for plots for presence/absence.
+
 ######### Examine all families
 
-# First, let's only use samples that were collected from birds in the wild
+# First, let's only use samples that were collected from birds in the wild for this figure
 coi_pa_wild <- subset_samples(coi_pa, site != "Gut_passage")
 
 # All genera
@@ -362,32 +382,184 @@ p <- plot_bar_2(coi_20, x="family", fill="life_history") +
 ggsave(here("3_r_scripts/common_families.png"), width = 10, height = 6, device = "png")
 
 ################################################################################
-# Export files for analyses for Paige's thesis (performed in R Markdown)  ----
+# Convert phyloseq object to data frame  ----
+
+# At this point, we've done all of the filtering/organizing/plotting that we want with phyloseq.
+# We will now convert the phyloseq object into a data frame so that we can more
+# easily work with it.
 
 plot_ra <- psmelt(coi_ra2) # psmelt makes a phyloseq object into a data frame
-write.csv(plot_ra, "plot_ra.csv")
 
 plot_pa <- psmelt(coi_pa) # psmelt makes a phyloseq object into a data frame
-write.csv(plot_pa, "plot_pa.csv")
 
 ################################################################################
-# Captive nestling gut passage samples ----
+# Calculate percent aquatic & number of families in each sample ----
 
-coi_pa_cap <- subset_samples(coi_pa, site == "Gut_passage")
+######## Percent aquatic using relative abundance
+# For this first calculation, we will also save the number of families per sample
 
-# All genera
-p <- plot_bar(coi_pa_cap, "family") + theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12))
-p <- p + facet_grid(~ age.1)
-age_order = c("6", "7", "8", "9", "10", "11", "12")
-p$data$age.1 <- as.character(p$data$age.1)
-p$data$age.1 <- factor(p$data$age.1, levels=age_order)
+# Identify the unique samples
+sample <- unique(plot_ra$sampleID)
 
-ggsave(here("3_r_scripts/family_bar.png"), width = 10, height = 4.5, device = "png")
+# Create an empty data frame to store relative abundance and number of families information
+aquatic <- data.frame(matrix(NA, ncol = 3, nrow = length(sample)))
+aquatic <- data.frame()
 
-# Try just certain days for readability
+for (i in 1:length(sample)){
+  sam <- sample[i] # identify sample
+  list <- plot_ra[plot_ra$sampleID == sam ,] # pull out all records from plot_ra that have that sample ID
+  unique_fam <- unique(list$family[list$Abundance != "0"])
+  num_fam <- length(unique_fam)
+  list_aq <- list[list$life_history == "aquatic" ,] # of those records, pull out only those that have aquatic life histories
+  rel_ab <- sum(list_aq$Abundance) # sum up all of the percentages of aquatic insects for that sample
+  aquatic[i,1] <- sam # save the sample name
+  aquatic[i,2] <- rel_ab # save the total aquatic relative abundance
+  aquatic[i,3] <- num_fam # save the number of families in the sample
+}
 
-coi_pa_cap_12 <- subset_samples(coi_pa_cap, age.1 == "12")
-p <- plot_bar(coi_pa_cap_12, "family") + theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12))
+# Name columns
+names(aquatic)[names(aquatic) == "V1"] <- "sampleID"
+names(aquatic)[names(aquatic) == "V2"] <- "percent_aquatic_ra"
+names(aquatic)[names(aquatic) == "V3"] <- "num_fam"
 
-coi_pa_cap_11 <- subset_samples(coi_pa_cap, age.1 == "11")
-p <- plot_bar(coi_pa_cap_11, "family") + theme_classic() + theme(axis.text.x = element_text(angle = 90, size = 12))
+# Add in sample information
+aquatic <- merge(aquatic, s_info, by = "sampleID", all.x = TRUE, all.y = FALSE)
+
+######## Percent aquatic using presence/absence
+
+# Identify the unique samples
+sample <- unique(plot_pa$sampleID)
+
+# Create an empty data frame to store presence/absence information
+pa_aq <- data.frame(matrix(NA, ncol = 2, nrow = length(sample)))
+pa_aq <- data.frame()
+
+for (i in 1:length(sample)){
+  sam <- sample[i] # identify sample
+  list <- plot_pa[plot_pa$sampleID == sam ,] # pull out all records from plot_ra that have that sample ID
+  list <- list[list$Abundance != 0 ,] # Only include OTUs in this calculation if they're actually present in the sample
+  list_aq <- list[list$life_history == "aquatic" ,] # of those records, pull out only those that have aquatic life histories
+  aq_count <- sum(list_aq$Abundance) # sum up all of the percentages of aquatic insects for that sample
+  all_count <- (sum(list$Abundance))
+  per_aq <- (aq_count / all_count)
+  pa_aq[i,1] <- sam # save the sample name
+  pa_aq[i,2] <- per_aq # save the total aquatic relative abundance
+}
+
+# Name columns
+names(pa_aq)[names(pa_aq) == "V1"] <- "sampleID"
+names(pa_aq)[names(pa_aq) == "V2"] <- "percent_aquatic_pa"
+
+# Add in sample information
+aquatic <- merge(pa_aq, aquatic, by = "sampleID")
+
+# Check to make sure that the data are classified correctly
+# str(aquatic) # This is important to check for modeling purposes, but I'm going to comment it out here so it doesn't spit out a long output in the Markdown document.
+
+# Check on the relationship between percent aquatic when it is calculated 
+# with relative abundance vs. presence/absence
+
+p <- ggplot(aquatic, aes(x=percent_aquatic_ra, y = percent_aquatic_pa)) + geom_point() +
+  geom_smooth(method=lm) + theme_classic() + xlab("Percent aquatic relative abundance") +
+  ylab("Percent aquatic presence/absence")
+ggsave(here("3_r_scripts/percent_aquatic_compare.png"), width = 5, height = 4, device = "png")
+
+cor <- cor.test(aquatic$percent_aquatic_ra, aquatic$percent_aquatic_pa)
+# There is a low correlation between percent aquatic when calculated with relative
+# abundance vs. presence/absence.
+
+################################################################################
+# Add in the number of reads per sample (sequencing depth) ----
+
+# Only keep the columns we need
+depth_postprune <- depth_postprune[,c("sampleID", "TotalReads")]
+
+# Merge with larger dataset
+aquatic <- merge(aquatic, depth_postprune, by = "sampleID")
+
+################################################################################
+# Calculate percent aquatic pooled by nest, for use in direct comparisons of adult vs. nestling diet ----
+
+# Subset data to exclude captive nestling samples
+aquatic_wild <- aquatic[aquatic$site == "Unit_4" | aquatic$site == "Turkey_Hill" ,]
+
+# Filter data just to adult and nestling captures during provisioning
+# (i.e. take out first adult captures during provisioning)
+aquatic_wild_ad <- aquatic_wild[aquatic_wild$cap_num != "1" & aquatic_wild$age == "Adult" ,]
+aquatic_wild_nest <- aquatic_wild[aquatic_wild$age == "Nestling" ,]
+aquatic_wild_prov <- rbind(aquatic_wild_ad, aquatic_wild_nest)
+
+# Pull out nestlings to average across nest
+aquatic_wild_prov_n <- aquatic_wild_prov[aquatic_wild_prov$age == "Nestling" ,]
+
+# Pull out adults
+aquatic_wild_prov_a <- aquatic_wild_prov[aquatic_wild_prov$age == "Adult" ,]
+
+######## Relative abundance calculations
+
+# Create an empty dataframe to store relative abundance information for each nest
+nests <- unique(aquatic_wild_prov_n$site_box_year)
+aquatic_wild_prov_npooled <- data.frame(matrix(NA, ncol = 2, nrow = length(nests)))
+aquatic_wild_prov_npooled <- data.frame()
+
+# Calculate average aquatic percentage with relative abundance for the nestlings in each nest
+for (i in 1:length(nests)){
+  nest <- nests[i] # identify nest
+  list <- aquatic_wild_prov_n[aquatic_wild_prov_n$site_box_year == nest ,] # pull out all nestlings from that nest
+  mean_aq <- mean(list$percent_aquatic_ra) # average % aquatic insects
+  aquatic_wild_prov_npooled[i,1] <- nest # save the nest name
+  aquatic_wild_prov_npooled[i,2] <- mean_aq # save the total aquatic relative abundance
+}
+
+# Name columns
+names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V1"] <- "site_box_year"
+names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V2"] <- "percent_aquatic_ra_nestlings_mean"
+
+# Combine adults with pooled nestling percentages
+aquatic_wild_prov_a <- merge(aquatic_wild_prov_a, aquatic_wild_prov_npooled, by = "site_box_year")
+
+######## Presence/absence calculations
+
+# Create an empty dataframe to store presence/absence information for each nest
+nests <- unique(aquatic_wild_prov_n$site_box_year)
+aquatic_wild_prov_npooled <- data.frame(matrix(NA, ncol = 2, nrow = length(nests)))
+aquatic_wild_prov_npooled <- data.frame()
+
+# Calculate average aquatic percentage with presence/absence for the nestlings in each nest
+for (i in 1:length(nests)){
+  nest <- nests[i] # identify nest
+  list <- aquatic_wild_prov_n[aquatic_wild_prov_n$site_box_year == nest ,] # pull out all nestlings from that nest
+  mean_aq <- mean(list$percent_aquatic_pa) # average % aquatic insects using presence/absence
+  aquatic_wild_prov_npooled[i,1] <- nest # save the nest name
+  aquatic_wild_prov_npooled[i,2] <- mean_aq # save the total aquatic percent
+}
+
+# Name columns
+names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V1"] <- "site_box_year"
+names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V2"] <- "percent_aquatic_pa_nestlings_mean"
+
+# Combine adults with pooled nestling percentages
+# This time, rename the file to something more 
+aquatic_prov_comp <- merge(aquatic_wild_prov_a, aquatic_wild_prov_npooled, by = "site_box_year")
+
+################################################################################
+# Check to see if same birds sampled across multiple years  ----
+
+# If there are birds that were sampled across years, then we'd need to probably
+# randomly choose one year and throw out the other year for that bird.
+# (We don't have enough repeat measures to make it worth using band as a random effect.)
+
+table(aquatic$band[aquatic$age == "Adult" & aquatic$cap_num == "1"]) 
+# None of the same birds are in this dataset for incubation captures in both 2019 and 2020
+
+table(aquatic$band[aquatic$age == "Adult" & aquatic$cap_num != "1"])
+# None of the same birds are in this dataset for provisioning captures in both 2019 and 2020
+
+table(aquatic_prov_comp$band) # There are none of the same birds caught between years in this dataset
+
+################################################################################
+# Export files for analyses for Paige's thesis (performed in R Markdown)  ----
+
+write.csv(aquatic, here("3_r_scripts", "aquatic.csv "))
+
+write.csv(aquatic_prov_comp, here("3_r_scripts", "aquatic_prov_comp.csv"))

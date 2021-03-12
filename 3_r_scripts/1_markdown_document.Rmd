@@ -19,6 +19,7 @@ library(ggplot2)
 library(here)
 library(sjPlot)
 library(car)
+library(lme4)
 ```
 
 # Overview
@@ -132,103 +133,14 @@ Here, for general exploration of the data, we plot families that occur in over 2
 
 # Calculating "Percent Aquatic" in Each Fecal Sample
 
-This is the point in this R Markdown document where we are making figures and performing analyses directly in this file.
-
 First, we used the aquatic/terrestrial classifications to calculate the percentage of each sample composed of aquatic insects. This is vital for the analyses for Paige's thesis.
 
-To start this process, we imported the two relevant files created by our filtering script: the phyloseq object turned data frame for relative abundance, and the phyloseq object turned data frame for presence/absence. We also imported the sample information file. 
-
-```{r}
-
-plot_ra <- read.csv("plot_ra.csv")
-
-plot_pa <- read.csv("plot_pa.csv")
-
-s_info <- read.delim(here("1_raw_data", "tres_sample_info.txt"))
-
-```
 We then went about calculating the "percent aquatic" in each fecal sample. We did this in two ways:
 
 1) We used the relative abundance of aquatic insect families in each sample. To do so, we summed up the percent of reads in each sample that were of an aquatic insect).
 2) We used the presence/absence of aquatic insect families in each sample. To do so, we counted up the number of families found in each fecal samples (total), summed up the number of those families that were aquatic (num_aq), and then divided num_aq / total.
 
-```{r, echo = FALSE}
-
-######## Percent aquatic using relative abundance
-
-# Identify the unique samples
-sample <- unique(plot_ra$sampleID)
-
-# Create an empty data frame to store relative abundance information
-aquatic <- data.frame(matrix(NA, ncol = 2, nrow = length(sample)))
-aquatic <- data.frame()
-  
-for (i in 1:length(sample)){
-  sam <- sample[i] # identify sample
-  list <- plot_ra[plot_ra$sampleID == sam ,] # pull out all records from plot_ra that have that sample ID
-  list_aq <- list[list$life_history == "aquatic" ,] # of those records, pull out only those that have aquatic life histories
-  rel_ab <- sum(list_aq$Abundance) # sum up all of the percentages of aquatic insects for that sample
-  aquatic[i,1] <- sam # save the sample name
-  aquatic[i,2] <- rel_ab # save the total aquatic relative abundance
-}
-
-# Name columns
-names(aquatic)[names(aquatic) == "V1"] <- "sampleID"
-names(aquatic)[names(aquatic) == "V2"] <- "percent_aquatic_ra"
-
-# Add in sample information
-aquatic <- merge(aquatic, s_info, by = "sampleID", all.x = TRUE, all.y = FALSE)
-
-######## Percent aquatic using presence/absence
-
-# Identify the unique samples
-sample <- unique(plot_pa$sampleID)
-
-# Create an empty data frame to store presence/absence information
-pa_aq <- data.frame(matrix(NA, ncol = 2, nrow = length(sample)))
-pa_aq <- data.frame()
-
-for (i in 1:length(sample)){
-  sam <- sample[i] # identify sample
-  list <- plot_pa[plot_pa$sampleID == sam ,] # pull out all records from plot_ra that have that sample ID
-  list <- list[list$Abundance != 0 ,] # Only include OTUs in this calculation if they're actually present in the sample
-  list_aq <- list[list$life_history == "aquatic" ,] # of those records, pull out only those that have aquatic life histories
-  aq_count <- sum(list_aq$Abundance) # sum up all of the percentages of aquatic insects for that sample
-  all_count <- (sum(list$Abundance))
-  per_aq <- (aq_count / all_count)
-  pa_aq[i,1] <- sam # save the sample name
-  pa_aq[i,2] <- per_aq # save the total aquatic relative abundance
-}
-
-# Name columns
-names(pa_aq)[names(pa_aq) == "V1"] <- "sampleID"
-names(pa_aq)[names(pa_aq) == "V2"] <- "percent_aquatic_pa"
-
-# Add in sample information
-aquatic <- merge(pa_aq, aquatic, by = "sampleID")
-
-# Check to make sure that the data are classified correctly
-# str(aquatic) # This is important to check for modeling purposes, but I'm going to comment it out here so it doesn't spit out a long output in the Markdown document.
-
-```
-
-After calculating these metrics for each sample, we examined how they were related just to see what we were working with. Below, we first calculated the correlation between these metrics. We then plotted the relationship between the two metrics. In the figure shown, each point represents a single sample, the x axis shows percent aquatic calculated with the relative abundance, and the y axis shows percent aquatic calculated with presence/absence.
-
-```{r, echo = FALSE}
-
-######## What is the relationship between percent aquatic when it is calculated 
-# with relative abundance vs. presence/absence?
-
-p <- ggplot(aquatic, aes(x=percent_aquatic_ra, y = percent_aquatic_pa)) + geom_point() +
-  geom_smooth(method=lm) + theme_classic() + xlab("Percent aquatic relative abundance") +
-  ylab("Percent aquatic presence/absence")
-ggsave(here("3_r_scripts/percent_aquatic_compare.png"), width = 5, height = 4, device = "png")
-
-cor.test(aquatic$percent_aquatic_ra, aquatic$percent_aquatic_pa)
-# There is a low correlation between percent aquatic when calculated with relative
-# abundance vs. presence/absence.
-
-```
+After calculating these metrics for each sample, we examined how they were related just to see what we were working with. Below, we plotted the relationship between the two metrics. In the figure shown, each point represents a single sample, the x axis shows percent aquatic calculated with the relative abundance, and the y axis shows percent aquatic calculated with presence/absence.
 
 ![](percent_aquatic_compare.png)\
 
@@ -236,7 +148,15 @@ We see that there is a relationship between the two metrics, but there is a lot 
 
 # Figures and Analyses for Paige's Thesis
 
-Here, we move in to the questions for Paige's thesis.
+Here, we move in to the questions for Paige's thesis. This is the point where we imported data from the separate R script and start working directly in the Markdown file.
+
+```{r}
+
+aquatic <- read.csv("aquatic.csv")
+
+aquatic_prov_comp <- read.csv("aquatic_prov_comp.csv")
+
+```
 
 ### Question 1: What is the relationship between a female’s body condition, as measured by mass, and the aquatic insect content in her diet?
 
@@ -259,10 +179,10 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 ```{r, echo = FALSE}
 # Relative abundance
 q1_cap1_ra <- plot(aquatic_ad_cap1$percent_aquatic_ra, aquatic_ad_cap1$mass)
-mod_q1_cap1_ra <- lm(mass ~ percent_aquatic_ra + site + treatment, data = aquatic_ad_cap1)
+mod_q1_cap1_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquatic_ad_cap1)
 #qqPlot(residuals(mod_q1_cap1_ra)) # Assumptions met
 #plot(mod_q1_cap1_ra) # Assumptions met
-summary(mod_q1_cap1_ra)
+tab_model(mod_q1_cap1_ra)
 ```
 There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass, although site is an important predictor of mass. Note that there are only 2019 birds in this model because the 2020 birds are on the upcoming sequencing run.
 
@@ -273,10 +193,10 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 ```{r, echo = FALSE}
 # Presence/absence
 q1_cap1_pa <- plot(aquatic_ad_cap1$percent_aquatic_pa, aquatic_ad_cap1$mass)
-mod_q1_cap1_pa <- lm(mass ~ percent_aquatic_pa + site + treatment, data = aquatic_ad_cap1)
+mod_q1_cap1_pa <- lm(mass ~ percent_aquatic_pa + site + exp_treat, data = aquatic_ad_cap1)
 #qqPlot(residuals(mod_q1_cap1_pa)) # Assumptions met
 #plot(mod_q1_cap1_pa) # Assumptions met
-summary(mod_q1_cap1_pa)
+tab_model(mod_q1_cap1_pa)
 ```
 There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass, although again, site is an important predictor of mass. Note that there are only 2019 birds in this model because the 2020 birds are on the upcoming sequencing run.
 
@@ -294,10 +214,10 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 ```{r, echo = FALSE}
 # Relative abundance
 q1_cap2_ra <- plot(aquatic_ad_cap2$mass~aquatic_ad_cap2$percent_aquatic_ra)
-mod_q1_cap2_ra <- lm(mass ~ percent_aquatic_ra + site + treatment, data = aquatic_ad_cap2)
+mod_q1_cap2_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquatic_ad_cap2)
 #qqPlot(residuals(mod_q1_cap2_ra)) # Assumptions met
 #plot(mod_q1_cap2_ra) # Assumptions met
-summary(mod_q1_cap2_ra)
+tab_model(mod_q1_cap2_ra)
 ```
 There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass. Note that this model includes both 2019 and 2020 birds.
 
@@ -308,11 +228,12 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 ```{r, echo = FALSE}
 # Presence/absence
 plot(aquatic_ad_cap2$mass~aquatic_ad_cap2$percent_aquatic_pa)
-mod_q1_cap2_pa <- lm(mass ~ percent_aquatic_pa + site + treatment, data = aquatic_ad_cap2)
+mod_q1_cap2_pa <- lm(mass ~ percent_aquatic_pa + site + exp_treat, data = aquatic_ad_cap2)
 #qqPlot(residuals(mod_q1_cap2_pa)) # The residuals are not distributed normally; this may be an issue.
 #plot(mod_q1_cap2_pa)
-summary(mod_q1_cap2_pa)
+tab_model(mod_q1_cap2_pa)
 ```
+
 There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass...though percent aquatic is getting a little closer to a p-value of less than 0.05. Note that this model includes both 2019 and 2020 birds.
 
 Additionally, this model may not be appropriate, as the residuals are not distributed normally.
@@ -321,48 +242,51 @@ Additionally, this model may not be appropriate, as the residuals are not distri
 
 We first need to subset the data to make sure we're only working with wild birds, and only birds from the provisioning captures. We're only going to compare the proportions of aquatic insects in the diets of adults vs. nestlings during their provisioning period, because obviously we do not have nestling samples from the incubation period.
 
-```{r, echo = FALSE}
+##### Aquatic insect content via relative abundance:
 
-# Subset data to exclude captive nestling samples
-aquatic_wild <- aquatic[aquatic$site == "Unit_4" | aquatic$site == "Turkey_Hill" ,]
+To assess how nestling diet (via relative abundance) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now. 
+
+```{r, echo = FALSE}
 
 # Filter data just to adult and nestling captures during provisioning
 # (i.e. take out first adult captures during provisioning)
+aquatic_wild <- aquatic[aquatic$site == "Turkey_Hill" | aquatic$site == "Unit_4" ,]
 aquatic_wild_ad <- aquatic_wild[aquatic_wild$cap_num != "1" & aquatic_wild$age == "Adult" ,]
 aquatic_wild_nest <- aquatic_wild[aquatic_wild$age == "Nestling" ,]
 aquatic_wild_prov <- rbind(aquatic_wild_ad, aquatic_wild_nest)
 
-```
-
-##### Aquatic insect content via relative abundance:
-
-To assess how nestling diet (via relative abundance) compares to adult diet, we started off by using an ANOVA, with predictors age, site, age*site, and treatment, and response variable percent aquatic. However, after checking model assumptions, it is clear that the residuals are not distributed normally. It's unclear which non-parametric equivalent is most appropriate in this context.
-
-```{r, echo = FALSE}
 # Relative abundance
-boxplot(percent_aquatic_ra~age*site, data = aquatic_wild_prov)
-mod_q2_ra <- aov(percent_aquatic_ra ~ age*site + treatment, data = aquatic_wild_prov)
-#qqPlot(residuals(mod_q2_ra)) # The residuals are not distributed normally! Does not fit the assumption of homoscedasticity.
-# Log transforming the "percent_aquatic_ra" does not help.
-#plot(mod_q2_ra) # Another visualization that shows that the model does not fit assumptions.
+boxplot(percent_aquatic_ra~age*exp_treat, data = aquatic_wild_prov)
+
+#str(aquatic_wild_prov)
+
+mod_q2_ra <- lmer(percent_aquatic_ra ~ age*exp_treat + site + (1|site_box_year), data = aquatic_wild_prov, REML = FALSE)
+
+#plot(mod_q2_ra) # Assumptions met
+
+tab_model(mod_q2_ra)
 ```
 
-There does, however, seem to be an interesting pattern here that is worth further exploring.
+It looks like there are not site differences here, but there are clear differences in how parents are allocating aquatic insects based on the CORT treatment they received, which is super interesting!! Note that these results may change with the addition of 60 Turkey Hill nestlings, all of which were part of the CORT dosing experiment.
 
 ##### Aquatic insect content via presence/absence:
 
-To assess how nestling diet (via presence/absence) compares to adult diet, we started off by using an ANOVA, with predictors age, site, age*site, and treatment, and response variable percent aquatic. However, after checking model assumptions, it is clear that the residuals are not distributed normally. It's unclear which non-parametric equivalent is most appropriate in this context.
+To assess how nestling diet (via presence/absence) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now.
 
 ```{r, echo = FALSE}
 # Presence/absence
-boxplot(percent_aquatic_pa~age*site, data = aquatic_wild_prov)
-mod_q2_pa <- aov(percent_aquatic_pa ~ age*site + treatment, data = aquatic_wild_prov)
-#qqPlot(residuals(mod_q2_pa)) # The residuals are not distributed normally! Does not fit the assumption of homoscedasticity.
-# Log transforming the "percent_aquatic_ra" does not help.
-#plot(mod_q2_pa) # Another visualization that shows that the model does not fit assumptions.
+boxplot(percent_aquatic_pa~age*exp_treat, data = aquatic_wild_prov)
+
+#str(aquatic_wild_prov)
+
+mod_q2_pa <- lmer(percent_aquatic_pa ~ age*exp_treat + site + (1|site_box_year), data = aquatic_wild_prov, REML = FALSE)
+
+#plot(mod_q2_pa) # Assumptions met
+
+tab_model(mod_q2_pa)
 ```
 
-Again, there do seem like some interesting patterns here that are worthy of further exploration.
+Unclear exactly what is going on here...the light treatment has some type of effect, which is surprising. Let's just keep this model on the back burner for now, as again, it will likely change with the new data, and we are not using presence/absence models anyway.
 
 ### Question 3: What is the relationship between adult and nestling diet content?
 
@@ -370,75 +294,18 @@ To answer this question, we took the nestlings in each nest and calculated the a
 
 During this process, we realized that we have pretty low coverage for Turkey Hill birds. For example, there were only two nests from Turkey Hill in 2019 that had both adult and nestling samples from provisioning, and we are still waiting on the sequencing run results from Turkey Hill nestlings from 2020. On the bright side, Unit 4 adult/nestling matching samples were plentiful from both 2019 and 2020.
 
-```{r, echo = FALSE}
-# Create column for unit_box
-aquatic_wild_prov$site_box <- paste(aquatic_wild_prov$site, aquatic_wild_prov$nest, aquatic_wild_prov$year, sep="_")
-
-# Pull out nestlings to average across nest
-aquatic_wild_prov_n <- aquatic_wild_prov[aquatic_wild_prov$age == "Nestling" ,]
-
-# Pull out adults
-aquatic_wild_prov_a <- aquatic_wild_prov[aquatic_wild_prov$age == "Adult" ,]
-
-######## Relative abundance calculations
-
-# Create an empty dataframe to store relative abundance information for each nest
-nests <- unique(aquatic_wild_prov_n$site_box)
-aquatic_wild_prov_npooled <- data.frame(matrix(NA, ncol = 2, nrow = length(nests)))
-aquatic_wild_prov_npooled <- data.frame()
-
-# Calculate average aquatic percentage with relative abundance for the nestlings in each nest
-for (i in 1:length(nests)){
-  nest <- nests[i] # identify nest
-  list <- aquatic_wild_prov_n[aquatic_wild_prov_n$site_box == nest ,] # pull out all nestlings from that nest
-  mean_aq <- mean(list$percent_aquatic_ra) # average % aquatic insects
-  aquatic_wild_prov_npooled[i,1] <- nest # save the nest name
-  aquatic_wild_prov_npooled[i,2] <- mean_aq # save the total aquatic relative abundance
-}
-
-# Name columns
-names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V1"] <- "site_box"
-names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V2"] <- "percent_aquatic_ra_nestlings_mean"
-
-# Combine adults with pooled nestling percentages
-aquatic_wild_prov_a <- merge(aquatic_wild_prov_a, aquatic_wild_prov_npooled, by = "site_box")
-
-######## Presence/absence calculations
-
-# Create an empty dataframe to store presence/absence information for each nest
-nests <- unique(aquatic_wild_prov_n$site_box)
-aquatic_wild_prov_npooled <- data.frame(matrix(NA, ncol = 2, nrow = length(nests)))
-aquatic_wild_prov_npooled <- data.frame()
-
-# Calculate average aquatic percentage with presence/absence for the nestlings in each nest
-for (i in 1:length(nests)){
-  nest <- nests[i] # identify nest
-  list <- aquatic_wild_prov_n[aquatic_wild_prov_n$site_box == nest ,] # pull out all nestlings from that nest
-  mean_aq <- mean(list$percent_aquatic_pa) # average % aquatic insects using presence/absence
-  aquatic_wild_prov_npooled[i,1] <- nest # save the nest name
-  aquatic_wild_prov_npooled[i,2] <- mean_aq # save the total aquatic percent
-}
-
-# Name columns
-names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V1"] <- "site_box"
-names(aquatic_wild_prov_npooled)[names(aquatic_wild_prov_npooled) == "V2"] <- "percent_aquatic_pa_nestlings_mean"
-
-# Combine adults with pooled nestling percentages
-aquatic_wild_prov_a <- merge(aquatic_wild_prov_a, aquatic_wild_prov_npooled, by = "site_box")
-```
-
 ##### Aquatic insect content via relative abundance:
 
 To assess this relationship, we used a linear model with percent aquatic of adults as a predictor and percent aquatic of nest as the response. In addition, we also included site and treatment as predictors.
 
 ```{r, echo = FALSE}
 # Relative abundance
-q3_ra <- plot(percent_aquatic_ra_nestlings_mean~percent_aquatic_ra, data = aquatic_wild_prov_a, 
+plot(percent_aquatic_ra_nestlings_mean~percent_aquatic_ra, data = aquatic_prov_comp, 
               xlab = "Percent Aquatic Adult (relative abundance)", ylab = "Percent Aquatic Nest (relative abundance)")
-mod_q3_ra <- lm(percent_aquatic_ra_nestlings_mean ~ percent_aquatic_ra + site + treatment, data = aquatic_wild_prov_a)
+mod_q3_ra <- lm(percent_aquatic_ra_nestlings_mean ~ percent_aquatic_ra + site + exp_treat, data = aquatic_prov_comp)
 #qqPlot(residuals(mod_q3_ra)) # Assumptions met
 #plot(mod_q3_ra) # Assumptions met
-summary(mod_q3_ra)
+tab_model(mod_q3_ra)
 ```
 None of these predictors do a good job of explaining each nest-level percent aquatic.
 
@@ -448,14 +315,14 @@ To assess this relationship, we used a linear model with percent aquatic of adul
 
 ```{r, echo = FALSE}
 # Presence/absence
-q3_pa <- plot(percent_aquatic_pa_nestlings_mean~percent_aquatic_pa, data = aquatic_wild_prov_a, 
+q3_pa <- plot(percent_aquatic_pa_nestlings_mean~percent_aquatic_pa, data = aquatic_prov_comp, 
               xlab = "Percent Aquatic Adult (presence/absence)", ylab = "Percent Aquatic Nest (presence/absence)")
-mod_q3_pa <- lm(percent_aquatic_pa_nestlings_mean ~ percent_aquatic_pa + site + treatment, data = aquatic_wild_prov_a)
+mod_q3_pa <- lm(percent_aquatic_pa_nestlings_mean ~ percent_aquatic_pa + site + exp_treat, data = aquatic_prov_comp)
 # qqPlot(residuals(mod_q3_pa)) # The residuals are not distributed normally; this may be an issue.
 # plot(mod_q3_pa)
-summary(mod_q3_pa)
+tab_model(mod_q3_pa)
 ```
 
-None of these predictors do a good job of explaining each nest-level percent aquatic. Additionally, this model may not be appropriate, as the residuals are not distributed normally.
+Interestingly, light is again coming out as a significant predictor, but as noted, this model is likely not appropriate because the data do not fit model assumptions. Also, who knows what will happen with the new data.
 
 ### Literature Cited
