@@ -1,6 +1,6 @@
 ###
 # Written by: Conor Taff, Jenny Uehling, and Paige Becker
-# Last updated: 3/10/2021
+# Last updated: 3/13/2021
 # Run under R Studio XX on XX
 
 # This is the main analysis script for processing the COI data after running through
@@ -195,26 +195,98 @@ summary_table <- map_12_2 %>% dplyr::count(site, age.1, cap_num)
 
 # This will also identify samples that don't match the metadata file and write them as a separate output
 # missing <- subset(map_12_2, is.na(map_12_2$band) == TRUE)
-# write.table(missing, "missing_info.txt", sep = "\t") 
+# write.table(missing, "missing_info.txt", sep = "\t")
+
+############################# March Run (03)
+
+# Load the number of reads by taxa per sample table. Format for phyloseq.
+otu_ab_03 <- read.delim(here("1_raw_data", paste0(amptk_prefix, "_2021_03.cluster.otu_table.txt")))
+otu_ab_03$X.OTU.ID <- paste0(otu_ab_03$X.OTU.ID, "_03") # delineate as March seq run
+rownames(otu_ab_03) <- otu_ab_03$X.OTU.ID   # give rownames from sample names
+otu_ab_03 <- otu_ab_03[, 2:ncol(otu_ab_03)]    # remove the column of sample names
+
+# Read the mapping table
+# this 'mapping' table from AMPtk is mostly blank but has all the sample
+# names so it can be joined to actual sample metadata. It's also possible
+# to merge in the sample metadata within the AMPtk pipeline.
+map_03 <- read.delim(here("1_raw_data", paste0(amptk_prefix, "_2021_03.mapping_file.txt")))
+
+for(i in 1:nrow(map_03)){
+  map_03$sampleID[i] <- strsplit(map_03$X.SampleID[i], "x")[[1]][2]
+}
+
+# write.table(map_03, "map_03.txt", sep = "\t") # if you want to save a copy of the mapping file
+
+# Read the otu taxonomy table
+otu_tax_03 <- read.delim(here("1_raw_data", paste0(amptk_prefix, "_2021_03.cluster.taxonomy.txt")))
+otu_tax_03$X.OTUID <- paste0(otu_tax_03$X.OTUID, "_03") # delineate as March seq run
+rownames(otu_tax_03) <- otu_tax_03$X.OTUID
+
+# The taxonomy result from AMPtk is in one long string of text. This is splitting up the string
+# and filling in a bunch of different columns. 
+for(i in 1:nrow(otu_tax_03)){
+  temp <- otu_tax_03$taxonomy[i]
+  temp2 <- strsplit(temp, "\\|")[[1]][3]
+  temp3 <- strsplit(temp2, ":")[[1]][2]
+  otu_tax_03$search_hit[i] <- strsplit(temp, "\\|")[[1]][1]
+  otu_tax_03$hit_score[i] <- strsplit(temp, "\\|")[[1]][2]
+  otu_tax_03$database[i] <- strsplit(temp2, ":")[[1]][1]
+  otu_tax_03$accession[i] <- strsplit(temp3, ";")[[1]][1]
+  otu_tax_03$kingdom[i] <- strsplit(strsplit(temp2, "k:")[[1]][2], ",")[[1]][1]
+  otu_tax_03$phylum[i] <- strsplit(strsplit(temp2, "p:")[[1]][2], ",")[[1]][1]
+  otu_tax_03$class[i] <- strsplit(strsplit(temp2, "c:")[[1]][2], ",")[[1]][1]
+  otu_tax_03$order[i] <- strsplit(strsplit(temp2, "o:")[[1]][2], ",")[[1]][1]
+  otu_tax_03$family[i] <- strsplit(strsplit(temp2, "f:")[[1]][2], ",")[[1]][1]
+  otu_tax_03$genus[i] <- strsplit(strsplit(temp2, "g:")[[1]][2], ",")[[1]][1]
+  otu_tax_03$species[i] <- strsplit(strsplit(temp2, "s:")[[1]][2], ",")[[1]][1]		
+}
+
+# Replace database mismatches caused by matches that aren't from BOLD records
+otu_tax_03$database <- gsub("None;k", "None", otu_tax_03$database)
+otu_tax_03$accession <- gsub("Animalia,p", "None", otu_tax_03$accession)
+
+# For phyloseq this has to be added as a matrix rather than data frame    
+otu_tax_03 <- as.matrix(otu_tax_03)
+# This is saving just the taxonomic ranks rather than the database info.
+otu_tax_03_2 <- otu_tax_03[, 10:16]
+
+# Add in the sample information to each sample
+map_03_2 <- join(map_03, s_info, "sampleID", "left", "first")
+rownames(map_03_2) <- map_03_2$X.SampleID
+
+# Print out some summary information about this dataset
+summary_table <- map_03_2 %>% dplyr::count(site, age.1, cap_num)
+
+# This will identify how many samples there are in each category of site,
+# age, and capture number.
+
+# This will also identify samples that don't match the metadata file and write them as a separate output
+# missing <- subset(map2, is.na(map2$band) == TRUE)
+# write.table(missing, "missing_info.txt", sep = "\t")
 
 ################################################################################
 # Build initial phyloseq object ----
 
 ## Combine tax tables from both sequencing runs
-otu_tax2 <- rbind(otu_tax_11_2, otu_tax_12_2)
+otu_tax2 <- rbind(otu_tax_11_2, otu_tax_12_2, otu_tax_03_2)
 TAX = tax_table(otu_tax2)
 
 ## Combine map files from both sequencing runs
-map2 <- rbind(map_11_2, map_12_2)
+map2 <- rbind(map_11_2, map_12_2, map_03_2)
 SAM = sample_data(map2)
 
 ## Combine otu tables from both sequencing runs
 # To do this, we'll have to create new columns that match
 nov_names <- colnames(otu_ab_11)
 dec_names <- colnames(otu_ab_12)
+mar_names <- colnames(otu_ab_03)
 otu_ab_11[dec_names] <- 0 # fill new columns with 0
+otu_ab_11[mar_names] <- 0 # fill new columns with 0
 otu_ab_12[nov_names] <- 0 # fill new columns with 0
-otu_ab <- rbind(otu_ab_11, otu_ab_12)
+otu_ab_12[mar_names] <- 0 # fill new columns with 0
+otu_ab_03[nov_names] <- 0 # fill new columns with 0
+otu_ab_03[dec_names] <- 0 # fill new columns with 0
+otu_ab <- rbind(otu_ab_11, otu_ab_12, otu_ab_03)
 otu_ab <- as.matrix(otu_ab)
 OTU = otu_table(otu_ab, taxa_are_rows = TRUE)
 

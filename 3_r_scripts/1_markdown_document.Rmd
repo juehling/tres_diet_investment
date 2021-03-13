@@ -184,7 +184,7 @@ mod_q1_cap1_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquati
 #plot(mod_q1_cap1_ra) # Assumptions met
 tab_model(mod_q1_cap1_ra)
 ```
-There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass, although site is an important predictor of mass. Note that there are only 2019 birds in this model because the 2020 birds are on the upcoming sequencing run.
+There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass, although site and treatment (light) are also important predictors of mass.
 
 ##### Aquatic insect content via presence/absence:
 
@@ -198,7 +198,7 @@ mod_q1_cap1_pa <- lm(mass ~ percent_aquatic_pa + site + exp_treat, data = aquati
 #plot(mod_q1_cap1_pa) # Assumptions met
 tab_model(mod_q1_cap1_pa)
 ```
-There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass, although again, site is an important predictor of mass. Note that there are only 2019 birds in this model because the 2020 birds are on the upcoming sequencing run.
+There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass, although again, site and treatment (light) are important predictors of mass.
 
 #### Female provisioning body condition
 
@@ -219,7 +219,7 @@ mod_q1_cap2_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquati
 #plot(mod_q1_cap2_ra) # Assumptions met
 tab_model(mod_q1_cap2_ra)
 ```
-There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass. Note that this model includes both 2019 and 2020 birds.
+There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass.
 
 ##### Aquatic insect content via presence/absence:
 
@@ -234,7 +234,7 @@ mod_q1_cap2_pa <- lm(mass ~ percent_aquatic_pa + site + exp_treat, data = aquati
 tab_model(mod_q1_cap2_pa)
 ```
 
-There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass...though percent aquatic is getting a little closer to a p-value of less than 0.05. Note that this model includes both 2019 and 2020 birds.
+There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass...though percent aquatic is getting a little closer to a p-value of less than 0.05.
 
 Additionally, this model may not be appropriate, as the residuals are not distributed normally.
 
@@ -244,7 +244,7 @@ We first need to subset the data to make sure we're only working with wild birds
 
 ##### Aquatic insect content via relative abundance:
 
-To assess how nestling diet (via relative abundance) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now. 
+To assess how nestling diet (via relative abundance) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now. The assumptions are maybe not met properly. (Note: Jenny will continue to work on this.)
 
 ```{r, echo = FALSE}
 
@@ -262,12 +262,12 @@ boxplot(percent_aquatic_ra~age*exp_treat, data = aquatic_wild_prov)
 
 mod_q2_ra <- lmer(percent_aquatic_ra ~ age*exp_treat + site + (1|site_box_year), data = aquatic_wild_prov, REML = FALSE)
 
-#plot(mod_q2_ra) # Assumptions met
+#plot(mod_q2_ra) # Assumptions maybe met? Worth looking into more
 
 tab_model(mod_q2_ra)
 ```
 
-It looks like there are not site differences here, but there are clear differences in how parents are allocating aquatic insects based on the CORT treatment they received, which is super interesting!! Note that these results may change with the addition of 60 Turkey Hill nestlings, all of which were part of the CORT dosing experiment.
+It looks like there are not site differences here, but there are clear differences in how parents are allocating aquatic insects based on the CORT treatment they received, which is super interesting!
 
 ##### Aquatic insect content via presence/absence:
 
@@ -286,13 +286,13 @@ mod_q2_pa <- lmer(percent_aquatic_pa ~ age*exp_treat + site + (1|site_box_year),
 tab_model(mod_q2_pa)
 ```
 
-Unclear exactly what is going on here...the light treatment has some type of effect, which is surprising. Let's just keep this model on the back burner for now, as again, it will likely change with the new data, and we are not using presence/absence models anyway.
+Unclear exactly what is going on here...the light treatment has some type of effect, which is surprising. Let's just keep this model on the back burner for now.
 
 ### Question 3: What is the relationship between adult and nestling diet content?
 
 To answer this question, we took the nestlings in each nest and calculated the average percent aquatic insects in their diet. This gave us an average nestling value to match with each adult. We did this for both percent aquatic calculated with relative abundance and percent aquatic calculated with presence/absence.
 
-During this process, we realized that we have pretty low coverage for Turkey Hill birds. For example, there were only two nests from Turkey Hill in 2019 that had both adult and nestling samples from provisioning, and we are still waiting on the sequencing run results from Turkey Hill nestlings from 2020. On the bright side, Unit 4 adult/nestling matching samples were plentiful from both 2019 and 2020.
+During this process, we realized that we have pretty low coverage for 2019 birds. There were only two nests from Turkey Hill in 2019 that had both adult and nestling samples from provisioning, and only six nests from Unit 4. However, samples from 2020 were more plentiful.
 
 ##### Aquatic insect content via relative abundance:
 
