@@ -178,7 +178,7 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 
 ```{r, echo = FALSE}
 # Relative abundance
-q1_cap1_ra <- ggplot(aquatic_ad_cap1, aes(x=percent_aquatic_ra, y=mass, color=TotalReads))+ geom_point()+scale_color_gradient(low="blue", high="red")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Mass (g)")
+q1_cap1_ra <- ggplot(aquatic_ad_cap1, aes(x=percent_aquatic_ra, y=mass, color=num_fam))+ geom_point()+scale_color_gradient(low="blue", high="red")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Mass (g)")
 q1_cap1_ra
 mod_q1_cap1_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquatic_ad_cap1)
 #qqPlot(residuals(mod_q1_cap1_ra)) # Assumptions met
@@ -214,7 +214,7 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 
 ```{r, echo = FALSE}
 # Relative abundance
-q1_cap2_ra <- ggplot(aquatic_ad_cap2, aes(x=percent_aquatic_ra, y=mass, color=TotalReads))+ geom_point()+scale_color_gradient(low="blue", high="red")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Mass (g)")
+q1_cap2_ra <- ggplot(aquatic_ad_cap2, aes(x=percent_aquatic_ra, y=mass, color=num_fam))+ geom_point()+scale_color_gradient(low="blue", high="red")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Mass (g)")
 q1_cap2_ra
 mod_q1_cap2_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquatic_ad_cap2)
 #qqPlot(residuals(mod_q1_cap2_ra)) # Assumptions met
