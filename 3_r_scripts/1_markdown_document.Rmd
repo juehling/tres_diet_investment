@@ -258,6 +258,9 @@ aquatic_wild_nest <- aquatic_wild[aquatic_wild$age == "Nestling" ,]
 aquatic_wild_prov <- rbind(aquatic_wild_ad, aquatic_wild_nest)
 
 # Relative abundance
+q2_ra <- ggplot(data=filter(aquatic_wild_prov, exp_treat == "CortMovement_Cort" | exp_treat == "CortMovement_Control"))+ geom_boxplot((aes(x=age, y= percent_aquatic_ra, fill= age)))+facet_wrap(~exp_treat)
+q2_ra
+
 boxplot(percent_aquatic_ra~age*exp_treat, data = aquatic_wild_prov)
 
 #str(aquatic_wild_prov)
