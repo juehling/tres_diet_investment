@@ -178,7 +178,7 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 
 ```{r, echo = FALSE}
 # Relative abundance
-q1_cap1_ra <- ggplot(aquatic_ad_cap1, aes(x=percent_aquatic_ra, y=mass, color=num_fam))+ geom_point()+scale_color_gradient(low="blue", high="red")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Mass (g)")
+q1_cap1_ra <- ggplot(aquatic_ad_cap1, aes(x=percent_aquatic_ra, y=mass))+ geom_point(color="coral1")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Incubation Mass (g)")
 q1_cap1_ra
 mod_q1_cap1_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquatic_ad_cap1)
 #qqPlot(residuals(mod_q1_cap1_ra)) # Assumptions met
@@ -214,7 +214,7 @@ To assess this relationship, we used a linear model with percent aquatic as a pr
 
 ```{r, echo = FALSE}
 # Relative abundance
-q1_cap2_ra <- ggplot(aquatic_ad_cap2, aes(x=percent_aquatic_ra, y=mass, color=num_fam))+ geom_point()+scale_color_gradient(low="blue", high="red")+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Mass (g)")
+q1_cap2_ra <- ggplot(aquatic_ad_cap2, aes(x=percent_aquatic_ra, y=mass))+ geom_point(color='coral1')+scale_x_continuous("Percent of Diet Containing Aquatic Insects")+scale_y_continuous("Adult Provisioning Mass (g)")
 q1_cap2_ra
 mod_q1_cap2_ra <- lm(mass ~ percent_aquatic_ra + site + exp_treat, data = aquatic_ad_cap2)
 #qqPlot(residuals(mod_q1_cap2_ra)) # Assumptions met
@@ -258,10 +258,11 @@ aquatic_wild_nest <- aquatic_wild[aquatic_wild$age == "Nestling" ,]
 aquatic_wild_prov <- rbind(aquatic_wild_ad, aquatic_wild_nest)
 
 # Relative abundance
-q2_ra <- ggplot(data=filter(aquatic_wild_prov, exp_treat == "CortMovement_Cort" | exp_treat == "CortMovement_Control"))+ geom_boxplot((aes(x=age, y= percent_aquatic_ra, fill= age)))+facet_wrap(~exp_treat)
+exp_treat_labels<- c("CORT Treatment", "CORT Control", "Light Treatment", "Light Control")
+names(exp_treat_labels) <- c("CortMovement_Cort", "CortMovement_Control", "Light_Light", "Light_Light_Control")
+q2_ra <- ggplot(data=aquatic_wild_prov)+ geom_boxplot((aes(x=age, y= percent_aquatic_ra, fill= age)))+scale_y_continuous("Percent of Diet Containing Aquatic Insects")+facet_grid(~exp_treat, labeller= labeller(exp_treat=exp_treat_labels))
 q2_ra
 
-boxplot(percent_aquatic_ra~age*exp_treat, data = aquatic_wild_prov)
 
 #str(aquatic_wild_prov)
 
@@ -305,7 +306,7 @@ To assess this relationship, we used a linear model with percent aquatic of adul
 
 ```{r, echo = FALSE}
 # Relative abundance
-q3_plot <- ggplot(aquatic_prov_comp, aes(x=percent_aquatic_ra, y=percent_aquatic_ra_nestlings_mean, color=exp_treat))+geom_point()+scale_x_continuous("Percent Aquatic Adult (relative abundance)")+scale_y_continuous("Percent Aquatic Nest (relative abundance)")
+q3_plot <- ggplot(aquatic_prov_comp, aes(x=percent_aquatic_ra, y=percent_aquatic_ra_nestlings_mean, color=exp_treat))+geom_point()+scale_x_continuous("Percent Aquatic Adult (relative abundance)")+scale_y_continuous("Percent Aquatic Nest (relative abundance)")+scale_color_discrete(name="Treatment Type", labels= c("CORT Control", "CORT Treatment", "Light Treatment", "Light Control"))
 q3_plot
 mod_q3_ra <- lm(percent_aquatic_ra_nestlings_mean ~ percent_aquatic_ra + site + exp_treat, data = aquatic_prov_comp)
 #qqPlot(residuals(mod_q3_ra)) # Assumptions met
