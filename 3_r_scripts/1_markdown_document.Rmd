@@ -158,6 +158,24 @@ aquatic_prov_comp <- read.csv("aquatic_prov_comp.csv")
 
 ```
 
+### Pre-question: Is there any relationship between day 6 nestling mass and diet?
+
+```{r}
+
+mod_day6mass <- lm(avg_day6_mass ~ percent_aquatic_ra_nestlings_mean + site + exp_treat, data = aquatic_prov_comp)
+
+#qqPlot(residuals(mod_day6mass)) # Assumptions met
+#plot(mod_day6mass) # Assumptions met
+tab_model(mod_day6mass)
+
+p_day6mass <- ggplot(aquatic_prov_comp, aes(x=percent_aquatic_ra_nestlings_mean, y=avg_day6_mass)) +
+  geom_point()
+
+p_day6mass
+
+```
+
+
 ### Question 1: What is the relationship between a female’s body condition, as measured by mass, and the aquatic insect content in her diet?
 
 We explored this in two separate subsets of the data: adult female captures from incubation and adult female captures from provisioning.
@@ -270,6 +288,10 @@ mod_q2_ra <- lmer(percent_aquatic_ra ~ age*exp_treat + site + (1|site_box_year),
 #plot(mod_q2_ra) # Assumptions maybe met? Worth looking into more
 
 tab_model(mod_q2_ra)
+
+## This is my start at looking into beta logistic regression, ignore for now.
+# m1 <- gamlss(percent_aquatic_ra ~ age + exp_treat + age:exp_treat + re(random = ~1|site_box_year), family= BEINF, data = aquatic_wild_prov, trace = FALSE)
+
 ```
 
 It looks like there are not site differences here, but there are clear differences in how parents are allocating aquatic insects based on the CORT treatment they received, which is super interesting!

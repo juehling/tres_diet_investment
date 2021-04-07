@@ -38,13 +38,17 @@ nest_info <- read.csv(here("1_raw_data", "Nest_Records_11.18.2020.csv"))
 # Create a column in nest_info that has the same information as site_box_year
 nest_info$site_box_year <- paste(nest_info$Site, nest_info$Nest, nest_info$Exp_Year, sep="_")
 
+# Create a column in nest_info that has the average nestling mass on day 6
+nest_info$avg_day6_mass <- nest_info$Day6_Brood_Mass/nest_info$Brood_Size_Day6
+
 # We're going to just delete the column that's already in "s_info" that has experiment and treatment.
 # This is because it does not have experiment/treatment information for nestlings, only for adults.
 # We're just going to re-import all the experiment info from the nest spreadsheet.
 s_info <- subset(s_info, select=-c(experiment, treatment))
 
 # Now, we'll extract just the columns we need from nest_info
-nest_info <- subset(nest_info, select=c(Nest_Experiment, Nest_Treatment, site_box_year))
+nest_info <- subset(nest_info, select=c(Nest_Experiment, Nest_Treatment, 
+                site_box_year, Day6_Brood_Mass, Brood_Size_Day6, avg_day6_mass))
 
 # Put nest experiment info in "s_info"
 s_info <- left_join(s_info, nest_info, by = "site_box_year")
@@ -375,7 +379,7 @@ glom_ps <- subset_samples(glom_ps, age != "neg_control")
 # (could change to singletons, 50-tons, or whatever)
 coi_ps2 <- prune_taxa(taxa_sums(glom_ps) > 5, glom_ps)
 
-# Create a record of the seqeuncing depth of each sample before transforming to relative abundance
+# Create a record of the sequencing depth of each sample before transforming to relative abundance
 depth_postprune <- data.frame(as(sample_data(coi_ps2), "data.frame"),
                     TotalReads = sample_sums(coi_ps2), keep.rownames = TRUE)
 
