@@ -64,8 +64,9 @@ s_info$exp_treat <- paste(s_info$Nest_Experiment, s_info$Nest_Treatment, sep="_"
 # when adapting this to a different set of data, change prefix
 amptk_prefix <- "trescoi"
 
-# For now, we're going to need to process the sequencing runs from November and 
-# December separately.
+# For now, we're going to need to process the sequencing runs from November, 
+# December, and March separately. They will be delineated with the prefixes 11,
+# 12, and 03, respectively.
 
 ############################# November Run (11)
 
@@ -279,11 +280,11 @@ TAX = tax_table(otu_tax2)
 map2 <- rbind(map_11_2, map_12_2, map_03_2)
 SAM = sample_data(map2)
 
-## Combine otu tables from both sequencing runs
+## Combine otu tables from all three sequencing runs
 # To do this, we'll have to create new columns that match
-nov_names <- colnames(otu_ab_11)
-dec_names <- colnames(otu_ab_12)
-mar_names <- colnames(otu_ab_03)
+nov_names <- colnames(otu_ab_11) # 487 samples
+dec_names <- colnames(otu_ab_12) # 403 samples
+mar_names <- colnames(otu_ab_03) # 146 samples
 otu_ab_11[dec_names] <- 0 # fill new columns with 0
 otu_ab_11[mar_names] <- 0 # fill new columns with 0
 otu_ab_12[nov_names] <- 0 # fill new columns with 0
