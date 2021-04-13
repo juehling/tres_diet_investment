@@ -165,6 +165,7 @@ aquatic_prov_comp <- read.csv("aquatic_prov_comp.csv")
 mod_day6mass <- lm(avg_day6_mass ~ percent_aquatic_ra_nestlings_mean + site + exp_treat, data = aquatic_prov_comp)
 
 #qqPlot(residuals(mod_day6mass)) # Assumptions met
+#hist(residuals(mod_day6mass))
 #plot(mod_day6mass) # Assumptions met
 tab_model(mod_day6mass)
 
@@ -289,9 +290,6 @@ mod_q2_ra <- lmer(percent_aquatic_ra ~ age*exp_treat + site + (1|site_box_year),
 #plot(mod_q2_ra) # Assumptions maybe met? Worth looking into more
 
 tab_model(mod_q2_ra)
-
-## This is my start at looking into beta logistic regression, ignore for now.
-# m1 <- gamlss(percent_aquatic_ra ~ age + exp_treat + age:exp_treat + re(random = ~1|site_box_year), family= BEINF, data = aquatic_wild_prov, trace = FALSE)
 
 ```
 
