@@ -276,8 +276,15 @@ aquatic_wild_nest <- aquatic_wild[aquatic_wild$age == "Nestling" ,]
 aquatic_wild_prov <- rbind(aquatic_wild_ad, aquatic_wild_nest)
 
 # Relative abundance
+#changing order of treatments for neatness
+treatment_order <- c("CortMovement_Cort", "CortMovement_Control", "Light_Light", "Light_Light_Control")
+aquatic_wild_prov$exp_treat <- as.character(aquatic_wild_prov$exp_treat)
+aquatic_wild_prov$exp_treat <- factor(aquatic_wild_prov$exp_treat, levels=treatment_order)
+
+#changing labels for neatness
 exp_treat_labels<- c("CORT Treatment", "CORT Control", "Light Treatment", "Light Control")
 names(exp_treat_labels) <- c("CortMovement_Cort", "CortMovement_Control", "Light_Light", "Light_Light_Control")
+
 q2_ra <- ggplot(data=aquatic_wild_prov)+ geom_boxplot((aes(x=age, y= percent_aquatic_ra, fill= age)))+scale_y_continuous("Percent of Diet Containing Aquatic Insects")+facet_grid(~exp_treat, labeller= labeller(exp_treat=exp_treat_labels))+theme_bw()+theme(axis.text=element_text(size=10), axis.title=element_text(size=10))
 q2_ra
 
