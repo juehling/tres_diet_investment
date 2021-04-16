@@ -637,6 +637,6 @@ table(aquatic_prov_comp$band) # There are none of the same birds caught between 
 ################################################################################
 # Export files for analyses for Paige's thesis (performed in R Markdown)  ----
 
-write.csv(aquatic, here("3_r_scripts", "aquatic.csv "))
+write.csv(aquatic, here("3_r_scripts", "aquatic.csv"))
 
 write.csv(aquatic_prov_comp, here("3_r_scripts", "aquatic_prov_comp.csv"))

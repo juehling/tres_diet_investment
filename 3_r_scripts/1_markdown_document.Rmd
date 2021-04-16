@@ -206,20 +206,6 @@ tab_model(mod_q1_cap1_ra)
 ```
 There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass, although site and treatment (light) are also important predictors of mass.
 
-##### Aquatic insect content via presence/absence:
-
-To assess this relationship, we used a linear model with percent aquatic as a predictor and mass as the response. In addition to percent aquatic, we also included site and treatment as predictors.
-
-```{r, echo = FALSE}
-# Presence/absence
-q1_cap1_pa <- plot(aquatic_ad_cap1$percent_aquatic_pa, aquatic_ad_cap1$mass)
-mod_q1_cap1_pa <- lm(mass ~ percent_aquatic_pa + site + exp_treat, data = aquatic_ad_cap1)
-#qqPlot(residuals(mod_q1_cap1_pa)) # Assumptions met
-#plot(mod_q1_cap1_pa) # Assumptions met
-tab_model(mod_q1_cap1_pa)
-```
-There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass, although again, site and treatment (light) are important predictors of mass.
-
 #### Female provisioning body condition
 
 ```{r, echo = FALSE}
@@ -242,30 +228,13 @@ tab_model(mod_q1_cap2_ra)
 ```
 There does not seem to be a strong relationship between percent aquatic (measured via relative abundance) and mass.
 
-##### Aquatic insect content via presence/absence:
-
-To assess this relationship, we used a linear model with percent aquatic as a predictor and mass as the response. In addition to percent aquatic, we also included site and treatment as predictors.
-
-```{r, echo = FALSE}
-# Presence/absence
-plot(aquatic_ad_cap2$mass~aquatic_ad_cap2$percent_aquatic_pa)
-mod_q1_cap2_pa <- lm(mass ~ percent_aquatic_pa + site + exp_treat, data = aquatic_ad_cap2)
-#qqPlot(residuals(mod_q1_cap2_pa)) # The residuals are not distributed normally; this may be an issue.
-#plot(mod_q1_cap2_pa)
-tab_model(mod_q1_cap2_pa)
-```
-
-There does not seem to be a strong relationship between percent aquatic (measured via presence/absence) and mass...though percent aquatic is getting a little closer to a p-value of less than 0.05.
-
-Additionally, this model may not be appropriate, as the residuals are not distributed normally.
-
 ### Question 2: How do the proportions of aquatic insects in the adult diets compare to the proportions of aquatic insects in the diets of their nestlings?
 
 We first need to subset the data to make sure we're only working with wild birds, and only birds from the provisioning captures. We're only going to compare the proportions of aquatic insects in the diets of adults vs. nestlings during their provisioning period, because obviously we do not have nestling samples from the incubation period.
 
 ##### Aquatic insect content via relative abundance:
 
-To assess how nestling diet (via relative abundance) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now. The assumptions are maybe not met properly. (Note: Jenny will continue to work on this.)
+To assess how nestling diet (via relative abundance) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now. The assumptions are maybe not met properly.
 
 ```{r, echo = FALSE}
 
@@ -289,8 +258,11 @@ names(exp_treat_labels) <- c("CortMovement_Cort", "CortMovement_Control", "Light
 q2_ra <- ggplot(data=aquatic_wild_prov)+ geom_boxplot((aes(x=age, y= percent_aquatic_ra, fill= age)))+scale_y_continuous("Percent of Diet Containing Aquatic Insects")+facet_grid(~exp_treat, labeller= labeller(exp_treat=exp_treat_labels))+theme_bw()+theme(axis.text=element_text(size=10), axis.title=element_text(size=10))
 q2_ra
 
-
 #str(aquatic_wild_prov)
+
+aquatic_wild_prov$age <- factor(aquatic_wild_prov$age, levels = c("Adult", "Nestling"))
+
+aquatic_wild_prov$exp_treat <- factor(aquatic_wild_prov$exp_treat, levels = c("CortMovement_Control", "CortMovement_Cort", "Light_Light", "Light_Light_Control"))
 
 mod_q2_ra <- lmer(percent_aquatic_ra ~ age*exp_treat + site + (1|site_box_year), data = aquatic_wild_prov, REML = FALSE)
 
@@ -301,25 +273,6 @@ tab_model(mod_q2_ra)
 ```
 
 It looks like there are not site differences here, but there are clear differences in how parents are allocating aquatic insects based on the CORT treatment they received, which is super interesting!
-
-##### Aquatic insect content via presence/absence:
-
-To assess how nestling diet (via presence/absence) compares to adult diet, we used a mixed effect model with fixed effects age, experimental treatment, age*experimental treatment, and site, and random effect nest box. Not 100% sure this is the best approach yet, but this is what we're working with right now.
-
-```{r, echo = FALSE}
-# Presence/absence
-boxplot(percent_aquatic_pa~age*exp_treat, data = aquatic_wild_prov)
-
-#str(aquatic_wild_prov)
-
-mod_q2_pa <- lmer(percent_aquatic_pa ~ age*exp_treat + site + (1|site_box_year), data = aquatic_wild_prov, REML = FALSE)
-
-#plot(mod_q2_pa) # Assumptions met
-
-tab_model(mod_q2_pa)
-```
-
-Unclear exactly what is going on here...the light treatment has some type of effect, which is surprising. Let's just keep this model on the back burner for now.
 
 ### Question 3: What is the relationship between adult and nestling diet content?
 
@@ -341,21 +294,5 @@ mod_q3_ra <- lm(percent_aquatic_ra_nestlings_mean ~ percent_aquatic_ra + site + 
 tab_model(mod_q3_ra)
 ```
 None of these predictors do a good job of explaining each nest-level percent aquatic.
-
-##### Aquatic insect content via presence/absence:
-
-To assess this relationship, we used a linear model with percent aquatic of adults as a predictor and percent aquatic of nest as the response. In addition, we also included site and treatment as predictors.
-
-```{r, echo = FALSE}
-# Presence/absence
-q3_pa <- plot(percent_aquatic_pa_nestlings_mean~percent_aquatic_pa, data = aquatic_prov_comp, 
-              xlab = "Percent Aquatic Adult (presence/absence)", ylab = "Percent Aquatic Nest (presence/absence)")
-mod_q3_pa <- lm(percent_aquatic_pa_nestlings_mean ~ percent_aquatic_pa + site + exp_treat, data = aquatic_prov_comp)
-# qqPlot(residuals(mod_q3_pa)) # The residuals are not distributed normally; this may be an issue.
-# plot(mod_q3_pa)
-tab_model(mod_q3_pa)
-```
-
-Interestingly, light is again coming out as a significant predictor, but as noted, this model is likely not appropriate because the data do not fit model assumptions. Also, who knows what will happen with the new data.
 
 ### Literature Cited
